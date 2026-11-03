@@ -12,6 +12,13 @@ const { createRateLimiter } = require('../lib/ratelimit');
 const router = express.Router();
 const authLimit = createRateLimiter(30, 60_000);
 
+/** 登录完成后的落点：需要填资料且未完善 → 资料页；否则参与页 */
+function postLoginRedirect(res, user) {
+  const required = state.getSetting('profile_form_enabled', '1') === '1';
+  const need = required && !(user.real_name && user.phone);
+  res.redirect(need ? '/profile.html' : '/');
+}
+
 /** 入口：跳微信授权（Mock 模式跳模拟登录页） */
 router.get('/auth/wechat', authLimit, (req, res) => {
   if (state.getSetting('sign_in_enabled', '1') !== '1' && !hasValidUser(req)) {
@@ -46,7 +53,7 @@ router.get('/auth/wechat/callback', authLimit, async (req, res, next) => {
       source: 'wechat',
     });
     setUserCookie(res, user.id);
-    res.redirect('/');
+    postLoginRedirect(res, user);
   } catch (e) {
     next(e);
   }
@@ -96,7 +103,7 @@ router.post('/auth/mock', authLimit, async (req, res, next) => {
     const exist = db.prepare('SELECT * FROM users WHERE openid = ?').get(openid); // 幂等
     if (exist) {
       setUserCookie(res, exist.id);
-      return res.redirect('/');
+      return postLoginRedirect(res, exist);
     }
     const inputName = req.query.random ? '' : ((req.body && req.body.name) || '').trim();
     const user = await users.signInUser({
@@ -106,7 +113,7 @@ router.post('/auth/mock', authLimit, async (req, res, next) => {
       source: 'mock',
     });
     setUserCookie(res, user.id);
-    res.redirect('/');
+    postLoginRedirect(res, user);
   } catch (e) {
     next(e);
   }

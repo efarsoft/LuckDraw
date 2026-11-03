@@ -50,6 +50,11 @@
   // ---------- 常规视图 ----------
   function render(s) {
     version = s.v;
+    // 资料未完善（且要求填写）→ 跳资料页
+    if (s.profile_required && !s.profile_complete && !CLAIM) {
+      location.replace('/profile.html');
+      return;
+    }
     $('act-title').textContent = s.activity.title || '幸运抽奖';
     $('act-subtitle').textContent = s.activity.subtitle || '';
     document.title = CLAIM ? '中奖查询' : (s.activity.title || '幸运抽奖');

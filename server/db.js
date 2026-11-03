@@ -20,6 +20,9 @@ CREATE TABLE IF NOT EXISTS users (
   avatar       TEXT,
   source       TEXT NOT NULL DEFAULT 'wechat',   -- wechat | mock | manual | seed
   note         TEXT,                              -- 名单导入时的手机尾号/备注
+  real_name    TEXT,                              -- 扫码填写的真实姓名
+  phone        TEXT,                              -- 扫码填写的手机号
+  dept         TEXT,                              -- 部门（选填）
   blocked      INTEGER NOT NULL DEFAULT 0,
   joined_at    INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL
@@ -60,11 +63,18 @@ CREATE TABLE IF NOT EXISTS sync_state (
 );
 `);
 
+// ---- 增量迁移：扫码资料字段（存量库自动补列） ----
+const userCols = db.prepare(`SELECT name FROM pragma_table_info('users')`).all().map((r) => r.name);
+if (!userCols.includes('real_name')) db.exec(`ALTER TABLE users ADD COLUMN real_name TEXT`);
+if (!userCols.includes('phone')) db.exec(`ALTER TABLE users ADD COLUMN phone TEXT`);
+if (!userCols.includes('dept')) db.exec(`ALTER TABLE users ADD COLUMN dept TEXT`);
+
 // ---- settings 初始化 ----
 const DEFAULT_SETTINGS = {
   activity_title: '年度盛典 · 幸运抽奖',
   activity_subtitle: '扫码参与 · 好运连连',
   sign_in_enabled: '1',
+  profile_form_enabled: '1',   // 扫码后需填写资料（姓名/手机号）
   current_round_id: '',
   phase: 'idle',            // idle | ready | rolling | reveal
   state_version: '1',

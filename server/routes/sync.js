@@ -26,7 +26,7 @@ router.get('/api/sync/pull', requirePair, (req, res) => {
   const since = parseInt(req.query.since_id || '0', 10) || 0;
   const users = db
     .prepare(
-      `SELECT id, openid, nickname, avatar, source, note, joined_at FROM users
+      `SELECT id, openid, nickname, avatar, source, note, real_name, phone, dept, joined_at FROM users
        WHERE id > ? AND id > 0 ORDER BY id ASC LIMIT 500`
     )
     .all(since);

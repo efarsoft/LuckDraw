@@ -2,6 +2,7 @@
 const express = require('express');
 const db = require('../db');
 const state = require('../services/state');
+const usersSvc = require('../services/users');
 const { createRateLimiter } = require('../lib/ratelimit');
 
 const router = express.Router();
@@ -16,7 +17,9 @@ function requireUser(req, res, next) {
 const { claimCode } = require('../lib/claimcode');
 
 function buildMeState(userId) {
-  const me = db.prepare('SELECT nickname, avatar FROM users WHERE id = ?').get(userId) || {};
+  const me = db
+    .prepare('SELECT nickname, real_name, phone, dept, avatar FROM users WHERE id = ?')
+    .get(userId) || {};
   const activity = {
     title: state.getSetting('activity_title'),
     subtitle: state.getSetting('activity_subtitle'),
@@ -33,12 +36,22 @@ function buildMeState(userId) {
     .get(userId);
   const lastBeat = parseInt(state.getSetting('cloud_last_beat', '0'), 10) || 0;
   const stale = lastBeat > 0 && Date.now() - lastBeat > 15_000; // 现场链路波动提示
+  const profileRequired = state.getSetting('profile_form_enabled', '1') === '1';
+  const displayName = me.real_name || me.nickname;
   return {
     v: state.getVersion(),
     activity,
     phase: state.getSetting('phase', 'idle'),
     current_round_id: parseInt(state.getSetting('current_round_id', '0'), 10) || null,
-    me: { nickname: me.nickname, avatar: me.avatar ? `/avatars/${me.avatar}` : null },
+    me: {
+      nickname: displayName,
+      wechat_nickname: me.nickname,
+      phone: me.phone || null,
+      dept: me.dept || null,
+      avatar: me.avatar ? `/avatars/${me.avatar}` : null,
+    },
+    profile_required: profileRequired,
+    profile_complete: !!(me.real_name && me.phone),
     rounds: rounds.map((r) => ({ ...r, drawn: r.status === 'drawn' })),
     my_win: myWin
       ? {
@@ -67,6 +80,16 @@ router.get('/api/me/state', pollLimit, requireUser, async (req, res) => {
     if (!changed) return res.status(204).end();
   }
   res.json(buildMeState(req.user.id));
+});
+
+/** 资料填写（签到第二页）：姓名 + 手机号必填，部门选填 */
+router.post('/api/me/profile', pollLimit, requireUser, (req, res, next) => {
+  try {
+    const u = usersSvc.setProfile(req.user.id, req.body || {});
+    res.json({ ok: true, profile_complete: usersSvc.profileComplete(u) });
+  } catch (e) {
+    next(e);
+  }
 });
 
 module.exports = router;

@@ -27,14 +27,34 @@ async function signInUser({ openid, nickname, avatarUrl = null, source = 'wechat
   return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
 }
 
+/** 扫码资料填写：姓名+手机号必填，部门选填；完成后视为完成签到 */
+function setProfile(userId, { real_name, phone, dept }) {
+  const name = String(real_name || '').trim().slice(0, 20);
+  const mobile = String(phone || '').trim();
+  const department = String(dept || '').trim().slice(0, 30) || null;
+  if (!name) throw Object.assign(new Error('请填写姓名'), { status: 400 });
+  if (!/^1[3-9]\d{9}$/.test(mobile)) throw Object.assign(new Error('手机号格式不正确'), { status: 400 });
+  const r = db
+    .prepare('UPDATE users SET real_name = ?, phone = ?, dept = ?, updated_at = ? WHERE id = ?')
+    .run(name, mobile, department, Date.now(), userId);
+  if (r.changes === 0) throw Object.assign(new Error('用户不存在'), { status: 404 });
+  state.bumpVersion();
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+}
+
+/** 资料是否已完善（配合 profile_form_enabled 决定是否强制填写） */
+function profileComplete(user) {
+  return !!(user && user.real_name && user.phone);
+}
+
 /** 本地节点：应用云端拉取回来的用户（显式使用云端 id，保证 winners 引用一致） */
 function upsertPulledUser(u) {
   const existing = db.prepare('SELECT id, blocked FROM users WHERE id = ?').get(u.id);
   if (existing) return false; // 增量水位保证基本不会走到；走到则保留本地 blocked 标记
   db.prepare(
-    `INSERT INTO users(id, openid, nickname, avatar, source, note, blocked, joined_at, updated_at)
-     VALUES(?,?,?,?,?,?,0,?,?)`
-  ).run(u.id, u.openid, u.nickname, u.avatar, u.source || 'wechat', u.note || null, u.joined_at, u.joined_at);
+    `INSERT INTO users(id, openid, nickname, avatar, source, note, real_name, phone, dept, blocked, joined_at, updated_at)
+     VALUES(?,?,?,?,?,?,?,?,?,0,?,?)`
+  ).run(u.id, u.openid, u.nickname, u.avatar, u.source || 'wechat', u.note || null, u.real_name || null, u.phone || null, u.dept || null, u.joined_at, u.joined_at);
   return true;
 }
 
@@ -71,4 +91,4 @@ const listUsers = () => db.prepare('SELECT * FROM users ORDER BY joined_at ASC')
 const countUsers = () => db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
 const getUser = (id) => db.prepare('SELECT * FROM users WHERE id = ?').get(id);
 
-module.exports = { signInUser, upsertPulledUser, upsertManualUser, addManualUser, setBlocked, listUsers, countUsers, getUser };
+module.exports = { signInUser, upsertPulledUser, upsertManualUser, addManualUser, setBlocked, setProfile, profileComplete, listUsers, countUsers, getUser };

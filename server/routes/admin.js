@@ -39,6 +39,7 @@ function winnerRows() {
     claim_code: claimCode(w.id),
     nickname: w.nickname || `用户#${w.user_id}`,
     note: w.note || '',
+    phone: w.phone || '',
     avatar: w.avatar ? `/avatars/${w.avatar}` : null,
   }));
 }
@@ -53,6 +54,7 @@ router.get('/api/admin/overview', requireAdmin, (req, res) => {
       title: state.getSetting('activity_title'),
       subtitle: state.getSetting('activity_subtitle'),
       sign_in_enabled: state.getSetting('sign_in_enabled', '1') === '1',
+      profile_form_enabled: state.getSetting('profile_form_enabled', '1') === '1',
       group_reveal_threshold: parseInt(state.getSetting('group_reveal_threshold', '5'), 10) || 5,
     },
     phase: state.getSetting('phase', 'idle'),
@@ -70,10 +72,11 @@ router.get('/api/admin/overview', requireAdmin, (req, res) => {
 });
 
 router.put('/api/admin/activity', requireAdmin, (req, res) => {
-  const { title, subtitle, sign_in_enabled, group_reveal_threshold } = req.body || {};
+  const { title, subtitle, sign_in_enabled, profile_form_enabled, group_reveal_threshold } = req.body || {};
   if (title !== undefined) state.setSetting('activity_title', String(title).slice(0, 60));
   if (subtitle !== undefined) state.setSetting('activity_subtitle', String(subtitle).slice(0, 80));
   if (sign_in_enabled !== undefined) state.setSetting('sign_in_enabled', sign_in_enabled ? '1' : '0');
+  if (profile_form_enabled !== undefined) state.setSetting('profile_form_enabled', profile_form_enabled ? '1' : '0');
   if (group_reveal_threshold !== undefined) {
     const n = parseInt(group_reveal_threshold, 10);
     if (Number.isInteger(n) && n >= 1 && n <= 100) state.setSetting('group_reveal_threshold', String(n));
@@ -205,7 +208,7 @@ router.get('/api/admin/users', requireAdmin, (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit || '400', 10) || 400, 1), 2000);
   const rows = db
     .prepare(
-      `SELECT id, nickname, avatar, source, note, blocked, joined_at FROM users ORDER BY id ASC LIMIT ?`
+      `SELECT id, COALESCE(NULLIF(real_name,''), nickname) AS nickname, real_name, nickname AS wechat_nickname, avatar, source, note, phone, dept, blocked, joined_at FROM users ORDER BY id ASC LIMIT ?`
     )
     .all(limit);
   res.json({ users: rows });
@@ -225,14 +228,17 @@ router.get('/api/admin/qrcode', requireAdmin, async (req, res) => {
 
 router.get('/api/admin/export', requireAdmin, (req, res) => {
   const rounds = new Map(draw.listRounds().map((r) => [r.id, r]));
-  const rows = [['轮次', '奖品', '姓名', '手机尾号/备注', '凭证码', '状态', '中奖时间']];
+  const rows = [['轮次', '奖品', '姓名', '手机号', '部门', '备注', '凭证码', '状态', '中奖时间']];
   for (const w of winnerRows()) {
     const r = rounds.get(w.round_id) || {};
+    const u = usersSvc.getUser(w.user_id) || {};
     rows.push([
       r.name || `#${w.round_id}`,
       r.prize_name || '',
       w.nickname,
-      w.note || '',
+      u.phone || w.note || '',
+      u.dept || '',
+      u.phone ? '' : (w.note || ''),
       w.claim_code,
       w.status === 'valid' ? '有效' : '弃奖',
       new Date(w.won_at).toLocaleString('zh-CN', { hour12: false }),

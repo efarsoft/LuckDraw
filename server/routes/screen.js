@@ -7,7 +7,7 @@ const QRCode = require('qrcode');
 
 const router = express.Router();
 
-/** 大屏用头像墙采样（每轮随机抽样，上限控制载荷） */
+/** 大屏用头像墙采样（每轮随机抽样，上限控制载荷；展示名优先真实姓名） */
 function poolSample(limit = 120) {
   const c = db
     .prepare(
@@ -16,7 +16,7 @@ function poolSample(limit = 120) {
     .get().c;
   const rows = db
     .prepare(
-      `SELECT u.id, u.nickname, u.avatar FROM users u
+      `SELECT u.id, COALESCE(NULLIF(u.real_name,''), u.nickname) AS nickname, u.avatar FROM users u
        WHERE u.blocked = 0 AND u.id NOT IN (SELECT user_id FROM winners)
        ORDER BY RANDOM() LIMIT ?`
     )

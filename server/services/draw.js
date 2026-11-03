@@ -16,7 +16,8 @@ const getRound = (id) => db.prepare('SELECT * FROM rounds WHERE id = ?').get(id)
 const listWinners = () =>
   db
     .prepare(
-      `SELECT w.id, w.round_id, w.user_id, w.status, w.won_at, u.nickname, u.avatar, u.note
+      `SELECT w.id, w.round_id, w.user_id, w.status, w.won_at,
+              COALESCE(NULLIF(u.real_name,''), u.nickname) AS nickname, u.avatar, u.note, u.phone
        FROM winners w LEFT JOIN users u ON u.id = w.user_id
        ORDER BY w.won_at ASC, w.id ASC`
     )
@@ -25,7 +26,8 @@ const listWinners = () =>
 const listWinnersByRound = (roundId) =>
   db
     .prepare(
-      `SELECT w.id, w.round_id, w.user_id, w.status, w.won_at, u.nickname, u.avatar, u.note
+      `SELECT w.id, w.round_id, w.user_id, w.status, w.won_at,
+              COALESCE(NULLIF(u.real_name,''), u.nickname) AS nickname, u.avatar, u.note, u.phone
        FROM winners w LEFT JOIN users u ON u.id = w.user_id
        WHERE w.round_id = ? ORDER BY w.id ASC`
     )
