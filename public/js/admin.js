@@ -392,6 +392,13 @@
     a.click();
   };
 
+  $('btn-export-users').onclick = () => {
+    const a = document.createElement('a');
+    a.href = `/api/admin/export/users?key=${encodeURIComponent(KEY)}`;
+    a.download = 'users.csv';
+    a.click();
+  };
+
   $('btn-qr').onclick = () => openQrModal(false);
   $('btn-claim-qr').onclick = () => openQrModal(true);
   async function openQrModal(claim) {

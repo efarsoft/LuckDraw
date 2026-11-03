@@ -259,6 +259,38 @@ router.get('/api/admin/export', requireAdmin, (req, res) => {
   res.send(csv);
 });
 
+/** 签到全量名单导出（活动后存档/对账） */
+router.get('/api/admin/export/users', requireAdmin, (req, res) => {
+  const rounds = new Map(draw.listRounds().map((r) => [r.id, r]));
+  // 中奖情况：user_id → '轮次【奖品】'（含弃奖标记）
+  const winInfo = new Map();
+  for (const w of draw.listWinners()) {
+    const r = rounds.get(w.round_id) || {};
+    const label = `${r.name || ''}【${r.prize_name || ''}】`;
+    winInfo.set(w.user_id, w.status === 'valid' ? label : `${label}（已弃奖）`);
+  }
+  const srcName = { wechat: '微信', mock: '模拟', manual: '补录', seed: '种子' };
+  const users = db.prepare('SELECT * FROM users ORDER BY id ASC').all();
+  const rows = [['序号', '姓名', '手机号', '企业/单位名称', '微信昵称', '来源', '中奖情况', '状态', '签到时间']];
+  users.forEach((u, i) => {
+    rows.push([
+      i + 1,
+      u.real_name || '',
+      u.phone || u.note || '',
+      u.dept || '',
+      u.nickname || '',
+      srcName[u.source] || u.source,
+      winInfo.get(u.id) || '未中奖',
+      u.blocked ? '已排除' : '正常',
+      new Date(u.joined_at).toLocaleString('zh-CN', { hour12: false }),
+    ]);
+  });
+  const csv = '\uFEFF' + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="users_${Date.now()}.csv"`);
+  res.send(csv);
+});
+
 /** 彩排重置：winners=只清中奖；all=清全部数据 */
 router.post('/api/admin/reset', requireAdmin, (req, res) => {
   const scope = String((req.body || {}).scope || '');
