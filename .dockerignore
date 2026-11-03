@@ -1,0 +1,9 @@
+node_modules
+data
+data-*
+.env
+.git
+.playwright-mcp
+.zcode
+*.log
+*.tar.gz

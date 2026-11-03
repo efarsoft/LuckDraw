@@ -1,0 +1,12 @@
+# 1Panel 容器编排示例（云端节点）
+# 用法：复制为 docker-compose.yml，配好 .env 后在 1Panel「容器 → 编排」中创建
+services:
+  luckydraw:
+    build: .
+    container_name: luckydraw
+    restart: unless-stopped
+    ports:
+      - "3000:3000"          # 仅本机/反代可达；如需对外可改 "127.0.0.1:3000:3000"
+    env_file: .env           # ROLE=cloud + 微信配置 + 密钥
+    volumes:
+      - ./data:/app/data     # 数据库/头像/奖品图 持久化（备份这个目录即可）
