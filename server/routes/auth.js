@@ -19,11 +19,10 @@ function postLoginRedirect(res, user) {
   res.redirect(need ? '/profile.html' : '/');
 }
 
-/** 入口：跳微信授权（Mock 模式跳模拟登录页） */
+/** 入口：跳微信授权（Mock 模式跳模拟登录页）。
+ * 签到通道关闭时也放行进入授权——是否放行在回调处按「是否老用户」判定，
+ * 保证已在奖池的用户即使 Cookie 丢失（静默重授权）也不被误拦。 */
 router.get('/auth/wechat', authLimit, (req, res) => {
-  if (state.getSetting('sign_in_enabled', '1') !== '1' && !hasValidUser(req)) {
-    return res.redirect('/?signin=closed');
-  }
   if (wechat.isMock()) return res.redirect('/auth/mock');
   const stateVal = crypto.randomBytes(8).toString('hex');
   res.setHeader(
@@ -46,12 +45,17 @@ router.get('/auth/wechat/callback', authLimit, async (req, res, next) => {
     if (!code) return res.status(400).send('授权失败：缺少 code');
     const info = await wechat.exchangeUser(code);
     if (!info || !info.openid) return res.status(502).send('微信授权失败，请稍后重试');
-    const user = await users.signInUser({
+    const signInOpen = state.getSetting('sign_in_enabled', '1') === '1';
+    const existing = db.prepare('SELECT * FROM users WHERE openid = ?').get(info.openid);
+    if (!existing && !signInOpen) {
+      return res.redirect('/?signin=closed'); // 通道已关且是新用户 → 拦截；老用户放行（Cookie 丢失场景）
+    }
+    const user = existing || (await users.signInUser({
       openid: info.openid,
       nickname: info.nickname,
       avatarUrl: info.avatarUrl,
       source: 'wechat',
-    });
+    }));
     setUserCookie(res, user.id);
     postLoginRedirect(res, user);
   } catch (e) {
@@ -90,9 +94,7 @@ button.ghost{background:transparent;color:#ffd700;border:1px solid rgba(255,215,
 
 router.post('/auth/mock', authLimit, async (req, res, next) => {
   try {
-    if (state.getSetting('sign_in_enabled', '1') !== '1' && !hasValidUser(req)) {
-      return res.redirect('/?signin=closed');
-    }
+    const signInOpen = state.getSetting('sign_in_enabled', '1') === '1';
     // 稳定 device id：同一浏览器重进保持同一身份（模拟"扫码一次"）
     let devId = parseCookies(req.headers.cookie).ld_dev;
     if (!devId || !/^[\w-]{6,64}$/.test(devId)) {
@@ -103,8 +105,9 @@ router.post('/auth/mock', authLimit, async (req, res, next) => {
     const exist = db.prepare('SELECT * FROM users WHERE openid = ?').get(openid); // 幂等
     if (exist) {
       setUserCookie(res, exist.id);
-      return postLoginRedirect(res, exist);
+      return postLoginRedirect(res, exist); // 老用户：即使签到已关也放行（Cookie 丢失场景）
     }
+    if (!signInOpen) return res.redirect('/?signin=closed'); // 新用户且通道已关 → 拦截
     const inputName = req.query.random ? '' : ((req.body && req.body.name) || '').trim();
     const user = await users.signInUser({
       openid,
