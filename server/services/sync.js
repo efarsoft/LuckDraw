@@ -218,4 +218,18 @@ function start() {
   pushTimer.unref?.();
 }
 
-module.exports = { markDirty, pullOnce, pushOnce, forcePull, status, start };
+/** 操作员手动「立即同步」：强制拉取 + 有脏标则立即推送，返回明细 */
+async function syncNow() {
+  if (config.ROLE !== 'local') {
+    return { ok: false, error: '当前为单机/云端模式，无同步任务' };
+  }
+  const pulled = await pullOnce(); // 拉取失败会抛出
+  let pushed = false;
+  if (state.getSyncState('dirty', '0') === '1') {
+    await pushOnce();
+    pushed = true;
+  }
+  return { ok: true, pulled_new_users: pulled, pushed_snapshot: pushed, status: status() };
+}
+
+module.exports = { markDirty, pullOnce, pushOnce, forcePull, syncNow, status, start };

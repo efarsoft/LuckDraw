@@ -204,6 +204,15 @@ router.post('/api/admin/users/:id/block', requireAdmin, (req, res) => {
 });
 
 /** 参与者列表（管理台查看/排除用，倒序取最新） */
+/** 操作员手动「立即同步」：强制拉取云端 + 有脏标立即推送 */
+router.post('/api/admin/sync-now', requireAdmin, async (req, res) => {
+  try {
+    res.json(await sync.syncNow());
+  } catch (e) {
+    res.status(502).json({ error: `同步失败：${e.message || e}`, detail: sync.status() });
+  }
+});
+
 router.get('/api/admin/users', requireAdmin, (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit || '400', 10) || 400, 1), 2000);
   const rows = db

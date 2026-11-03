@@ -59,6 +59,7 @@
     ov = data;
     $('role-badge').textContent = data.role;
     $('phase-badge').textContent = data.phase + (data.phase === 'rolling' ? '（滚动中）' : '');
+    $('btn-sync-now').classList.toggle('hidden', data.role !== 'local'); // 仅本地节点显示
     // 同步状态
     const pill = $('sync-pill'), txt = $('sync-text');
     if (data.role !== 'local') {
@@ -355,6 +356,34 @@
     search = e.target.value.trim();
     if (ov) renderUsers(ov);
   });
+
+  // 手动「立即同步」：强制拉取 + 回传，结果即时反馈
+  $('btn-sync-now').onclick = async () => {
+    const btn = $('btn-sync-now');
+    btn.disabled = true;
+    btn.textContent = '⟳ 同步中…';
+    try {
+      const resp = await fetch('/api/admin/sync-now', {
+        method: 'POST',
+        headers: { 'x-admin-key': KEY },
+        cache: 'no-store',
+      });
+      const data = await resp.json();
+      if (!resp.ok || data.ok === false) {
+        showToast('⚠ ' + (data.error || '同步失败'), 3200);
+      } else if (data.status && data.status.linked) {
+        showToast(`✅ 已同步：新拉取 ${data.pulled_new_users} 人${data.pushed_snapshot ? ' · 结果已回传' : ''}`, 3200);
+      } else {
+        showToast(`⚠ 云端不可达：${(data.status && data.status.last_error) || '连接失败'}（自动重试中）`, 3600);
+      }
+    } catch (e) {
+      showToast('⚠ 请求失败：' + (e.message || ''));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '⟳ 立即同步';
+      refreshOnce();
+    }
+  };
 
   $('btn-export').onclick = () => {
     const a = document.createElement('a');
