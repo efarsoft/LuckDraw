@@ -38,7 +38,7 @@ function poolCount() {
   return db
     .prepare(
       `SELECT COUNT(*) AS c FROM users
-       WHERE blocked = 0 AND id NOT IN (SELECT user_id FROM winners)`
+       WHERE blocked = 0 AND in_pool = 1 AND id NOT IN (SELECT user_id FROM winners)`
     )
     .get().c;
 }
@@ -62,7 +62,7 @@ function drawRound(roundId, { redraw = false } = {}) {
     const pool = db
       .prepare(
         `SELECT id FROM users
-         WHERE blocked = 0 AND id NOT IN (SELECT user_id FROM winners)
+         WHERE blocked = 0 AND in_pool = 1 AND id NOT IN (SELECT user_id FROM winners)
          ORDER BY RANDOM() LIMIT ?`
       )
       .all(need)

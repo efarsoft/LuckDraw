@@ -8,9 +8,9 @@ const state = require('./state');
  * openid 唯一约束：重复扫码/断网重试不会产生重复用户。
  * 远程头像优先下载落盘（云端有外网），失败落回首字母 SVG。
  */
-async function signInUser({ openid, nickname, avatarUrl = null, source = 'wechat', note = null }) {
+async function signInUser({ openid, nickname, avatarUrl = null, source = 'wechat', note = null, inPool = true }) {
   const existing = db.prepare('SELECT * FROM users WHERE openid = ?').get(openid);
-  if (existing) return existing; // 已在奖池：幂等返回，不更新（保持现场名单稳定）
+  if (existing) return existing; // 已存在：幂等返回，不更新（保持现场名单稳定）
 
   let avatarFile = null;
   if (avatarUrl) avatarFile = await avatarLib.downloadAvatar(avatarUrl, openid.slice(-12));
@@ -19,12 +19,19 @@ async function signInUser({ openid, nickname, avatarUrl = null, source = 'wechat
   const now = Date.now();
   const info = db
     .prepare(
-      `INSERT INTO users(openid, nickname, avatar, source, note, blocked, joined_at, updated_at)
-       VALUES(?,?,?,?,?,0,?,?)`
+      `INSERT INTO users(openid, nickname, avatar, source, note, in_pool, blocked, joined_at, updated_at)
+       VALUES(?,?,?,?,?,?,0,?,?)`
     )
-    .run(openid, String(nickname || '神秘用户').slice(0, 30), avatarFile, source, note, now, now);
+    .run(openid, String(nickname || '神秘用户').slice(0, 30), avatarFile, source, note, inPool ? 1 : 0, now, now);
   state.bumpVersion();
   return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+}
+
+/** 抽奖签到：进入奖池（入场用户扫抽奖码时调用） */
+function enterPool(userId) {
+  const r = db.prepare('UPDATE users SET in_pool = 1, updated_at = ? WHERE id = ? AND in_pool = 0').run(Date.now(), userId);
+  if (r.changes > 0) state.bumpVersion();
+  return r.changes > 0;
 }
 
 /** 扫码资料填写：姓名+手机号必填，企业/单位名称选填；完成后视为完成签到 */
@@ -47,15 +54,28 @@ function profileComplete(user) {
   return !!(user && user.real_name && user.phone);
 }
 
-/** 本地节点：应用云端拉取回来的用户（显式使用云端 id，保证 winners 引用一致） */
+/** 本地节点：应用云端拉取回来的用户（显式使用云端 id，保证 winners 引用一致）。
+ *  返回 'new' | 'updated' | false（无变化） */
 function upsertPulledUser(u) {
-  const existing = db.prepare('SELECT id, blocked FROM users WHERE id = ?').get(u.id);
-  if (existing) return false; // 增量水位保证基本不会走到；走到则保留本地 blocked 标记
+  const existing = db.prepare('SELECT id, in_pool, real_name, phone, dept, blocked FROM users WHERE id = ?').get(u.id);
+  const inPool = u.in_pool === 0 ? 0 : 1;
+  if (existing) {
+    // 更新通道：入场用户后来扫抽奖码入池 / 资料后补——保留本地 blocked 标记
+    if (existing.in_pool === inPool && existing.real_name === (u.real_name || null)
+        && existing.phone === (u.phone || null) && existing.dept === (u.dept || null)) return false;
+    db.prepare(`UPDATE users SET in_pool = ?, real_name = ?, phone = ?, dept = ?, updated_at = ? WHERE id = ?`)
+      .run(inPool, u.real_name || null, u.phone || null, u.dept || null, Date.now(), u.id);
+    return 'updated';
+  }
   db.prepare(
-    `INSERT INTO users(id, openid, nickname, avatar, source, note, real_name, phone, dept, blocked, joined_at, updated_at)
-     VALUES(?,?,?,?,?,?,?,?,?,0,?,?)`
-  ).run(u.id, u.openid, u.nickname, u.avatar, u.source || 'wechat', u.note || null, u.real_name || null, u.phone || null, u.dept || null, u.joined_at, u.joined_at);
-  return true;
+    `INSERT INTO users(id, openid, nickname, avatar, source, note, real_name, phone, dept, in_pool, blocked, joined_at, updated_at)
+     VALUES(?,?,?,?,?,?,?,?,?,?,0,?,?)`
+  ).run(
+    u.id, u.openid, u.nickname, u.avatar, u.source || 'wechat', u.note || null,
+    u.real_name || null, u.phone || null, u.dept || null, inPool,
+    u.joined_at, u.joined_at
+  );
+  return 'new';
 }
 
 /** 云端节点：应用本地推送的手动用户（负数 id，与云端自增 id 空间不冲突） */
@@ -91,4 +111,4 @@ const listUsers = () => db.prepare('SELECT * FROM users ORDER BY joined_at ASC')
 const countUsers = () => db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
 const getUser = (id) => db.prepare('SELECT * FROM users WHERE id = ?').get(id);
 
-module.exports = { signInUser, upsertPulledUser, upsertManualUser, addManualUser, setBlocked, setProfile, profileComplete, listUsers, countUsers, getUser };
+module.exports = { signInUser, upsertPulledUser, upsertManualUser, addManualUser, setBlocked, setProfile, enterPool, profileComplete, listUsers, countUsers, getUser };

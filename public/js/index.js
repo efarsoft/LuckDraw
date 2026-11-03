@@ -3,6 +3,7 @@
   let version = 0;
   let lastMyWin = null;
   let polling = false;
+  let enteringPool = false;
   const $ = (id) => document.getElementById(id);
 
   // 领奖查询模式：?claim=1 进入；授权跳转前记忆，回来后自动恢复
@@ -54,6 +55,13 @@
     if (s.profile_required && !s.profile_complete && !CLAIM) {
       location.replace('/profile.html');
       return;
+    }
+    // 抽奖入口：入场用户（未入池）打开即自动入池；领奖查询视图不触发
+    if (!s.in_pool && !CLAIM && !enteringPool) {
+      enteringPool = true;
+      http.post('/api/me/enter-pool', undefined, { retries: 2 }).catch(() => {}).finally(() => {
+        enteringPool = false;
+      });
     }
     $('act-title').textContent = s.activity.title || '幸运抽奖';
     $('act-subtitle').textContent = s.activity.subtitle || '';

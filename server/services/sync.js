@@ -48,13 +48,14 @@ function fetchWithTimeout(url, opts = {}, timeoutMs = 6000) {
 
 const pairHeaders = { 'x-pair-key': config.PAIR_KEY, 'content-type': 'application/json' };
 
-/** 增量拉取：新用户 + 头像文件（回流到本地） */
+/** 增量拉取：新用户 + 变更用户（入池/资料更新）+ 头像文件（回流到本地） */
 async function pullOnce() {
   // 全量重置尚未被云端确认时暂停拉取，防止旧用户回流复活
   if (state.getSyncState('clear_users_flag', '0') === '1') return 0;
   const since = parseInt(state.getSyncState('pull_watermark', '0'), 10) || 0;
+  const sinceTs = parseInt(state.getSyncState('pull_ts', '0'), 10) || 0;
   const resp = await fetchWithTimeout(
-    `${config.CLOUD_URL}/api/sync/pull?since_id=${since}`,
+    `${config.CLOUD_URL}/api/sync/pull?since_id=${since}&since_ts=${sinceTs}`,
     { headers: pairHeaders },
     6000
   );
@@ -62,14 +63,18 @@ async function pullOnce() {
   const data = await resp.json();
 
   let newCount = 0;
+  let changed = false;
+  let maxId = since;
   for (const u of data.users || []) {
-    const inserted = db.transaction(() => require('./users').upsertPulledUser(u))();
-    if (inserted) {
-      newCount++;
-      state.setSyncState('pull_watermark', String(Math.max(since, u.id)), );
-    }
+    const r = db.transaction(() => require('./users').upsertPulledUser(u))();
+    if (r === 'new') newCount++;
+    if (r) changed = true;
+    if (u.id > maxId) maxId = u.id;
   }
-  if (newCount > 0) state.bumpVersion(); // 大屏签到人数/头像墙更新
+  state.setSyncState('pull_watermark', String(maxId));
+  state.setSyncState('pull_ts', String(data.server_time || Date.now()));
+  if (changed) state.bumpVersion(); // 新签到或入池变更 → 大屏/管理台刷新
+  return newCount;
 
   // 头像文件落盘（缺失才拉，失败落回本地 SVG 兜底）
   const updAvatar = db.prepare('UPDATE users SET avatar = ? WHERE id = ?');

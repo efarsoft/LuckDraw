@@ -18,7 +18,7 @@ const { claimCode } = require('../lib/claimcode');
 
 function buildMeState(userId) {
   const me = db
-    .prepare('SELECT nickname, real_name, phone, dept, avatar FROM users WHERE id = ?')
+    .prepare('SELECT nickname, real_name, phone, dept, in_pool, avatar FROM users WHERE id = ?')
     .get(userId) || {};
   const activity = {
     title: state.getSetting('activity_title'),
@@ -52,6 +52,7 @@ function buildMeState(userId) {
     },
     profile_required: profileRequired,
     profile_complete: !!(me.real_name && me.phone),
+    in_pool: !!me.in_pool,
     rounds: rounds.map((r) => ({ ...r, drawn: r.status === 'drawn' })),
     my_win: myWin
       ? {
@@ -90,6 +91,15 @@ router.post('/api/me/profile', pollLimit, requireUser, (req, res, next) => {
   } catch (e) {
     next(e);
   }
+});
+
+/** 抽奖签到：进入奖池（打开抽奖入口 / 的入场用户自动调用） */
+router.post('/api/me/enter-pool', pollLimit, requireUser, (req, res) => {
+  if (state.getSetting('sign_in_enabled', '1') !== '1') {
+    return res.status(403).json({ error: '抽奖签到通道已关闭' });
+  }
+  const entered = usersSvc.enterPool(req.user.id);
+  res.json({ ok: true, entered });
 });
 
 module.exports = router;

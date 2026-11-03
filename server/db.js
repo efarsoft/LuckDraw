@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
   real_name    TEXT,                              -- 扫码填写的真实姓名
   phone        TEXT,                              -- 扫码填写的手机号
   dept         TEXT,                              -- 企业/单位名称（选填）
+  in_pool      INTEGER NOT NULL DEFAULT 1,        -- 1=已进入抽奖奖池；0=仅入场签到
   blocked      INTEGER NOT NULL DEFAULT 0,
   joined_at    INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL
@@ -68,6 +69,7 @@ const userCols = db.prepare(`SELECT name FROM pragma_table_info('users')`).all()
 if (!userCols.includes('real_name')) db.exec(`ALTER TABLE users ADD COLUMN real_name TEXT`);
 if (!userCols.includes('phone')) db.exec(`ALTER TABLE users ADD COLUMN phone TEXT`);
 if (!userCols.includes('dept')) db.exec(`ALTER TABLE users ADD COLUMN dept TEXT`);
+if (!userCols.includes('in_pool')) db.exec(`ALTER TABLE users ADD COLUMN in_pool INTEGER NOT NULL DEFAULT 1`);
 
 // ---- settings 初始化 ----
 const DEFAULT_SETTINGS = {

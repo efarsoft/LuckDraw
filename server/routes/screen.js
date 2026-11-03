@@ -11,13 +11,13 @@ const router = express.Router();
 function poolSample(limit = 120) {
   const c = db
     .prepare(
-      `SELECT COUNT(*) AS c FROM users WHERE blocked = 0 AND id NOT IN (SELECT user_id FROM winners)`
+      `SELECT COUNT(*) AS c FROM users WHERE blocked = 0 AND in_pool = 1 AND id NOT IN (SELECT user_id FROM winners)`
     )
     .get().c;
   const rows = db
     .prepare(
       `SELECT u.id, COALESCE(NULLIF(u.real_name,''), u.nickname) AS nickname, u.avatar FROM users u
-       WHERE u.blocked = 0 AND u.id NOT IN (SELECT user_id FROM winners)
+       WHERE u.blocked = 0 AND u.in_pool = 1 AND u.id NOT IN (SELECT user_id FROM winners)
        ORDER BY RANDOM() LIMIT ?`
     )
     .all(limit);
@@ -53,7 +53,8 @@ function buildScreenState() {
     winners_by_round: winnersByRound,
     pool_count: pool.count,
     pool_sample: pool.sample.map((u) => ({ ...u, avatar: u.avatar ? `/avatars/${u.avatar}` : null })),
-    sign_count: db.prepare('SELECT COUNT(*) AS c FROM users').get().c,
+    sign_count: db.prepare('SELECT COUNT(*) AS c FROM users WHERE in_pool = 1').get().c, // 参与人数=已入抽奖池
+    entry_count: db.prepare('SELECT COUNT(*) AS c FROM users').get().c,                 // 入场登记人数
     server_time: Date.now(),
   };
 }

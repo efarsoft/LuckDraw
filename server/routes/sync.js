@@ -24,12 +24,13 @@ function requirePair(req, res, next) {
 
 router.get('/api/sync/pull', requirePair, (req, res) => {
   const since = parseInt(req.query.since_id || '0', 10) || 0;
+  const sinceTs = parseInt(req.query.since_ts || '0', 10) || 0;
   const users = db
     .prepare(
-      `SELECT id, openid, nickname, avatar, source, note, real_name, phone, dept, joined_at FROM users
-       WHERE id > ? AND id > 0 ORDER BY id ASC LIMIT 500`
+      `SELECT id, openid, nickname, avatar, source, note, real_name, phone, dept, in_pool, joined_at, updated_at FROM users
+       WHERE id > 0 AND (id > ? OR updated_at > ?) ORDER BY id ASC LIMIT 500`
     )
-    .all(since);
+    .all(since, sinceTs);
   res.json({ users, server_time: Date.now() });
 });
 

@@ -12,18 +12,36 @@ const { createRateLimiter } = require('../lib/ratelimit');
 const router = express.Router();
 const authLimit = createRateLimiter(30, 60_000);
 
-/** 登录完成后的落点：需要填资料且未完善 → 资料页；否则参与页 */
-function postLoginRedirect(res, user) {
+/** 登录完成后的落点：
+ *  entry 模式（入场签到）→ /entry.html（不进奖池）
+ *  默认（抽奖签到）→ 资料未完善进资料页，否则参与页 */
+function postLoginRedirect(res, user, mode) {
+  if (mode === 'entry') return res.redirect('/entry.html');
   const required = state.getSetting('profile_form_enabled', '1') === '1';
   const need = required && !(user.real_name && user.phone);
   res.redirect(need ? '/profile.html' : '/');
 }
 
-/** 入口：跳微信授权（Mock 模式跳模拟登录页）。
+/** 入场模式标记：签名 Cookie 传递过 OAuth 回调（10 分钟） */
+function setEntryMode(res, on) {
+  res.setHeader(
+    'Set-Cookie',
+    on
+      ? `ld_mode=${sign('entry')}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=600`
+      : `ld_mode=; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=0`
+  );
+}
+function readEntryMode(req) {
+  return verify(parseCookies(req.headers.cookie).ld_mode || '') === 'entry';
+}
+
+/** 入口：跳微信授权（Mock 模式跳模拟登录页）。?mode=entry = 入场签到（不进奖池）。
  * 签到通道关闭时也放行进入授权——是否放行在回调处按「是否老用户」判定，
  * 保证已在奖池的用户即使 Cookie 丢失（静默重授权）也不被误拦。 */
 router.get('/auth/wechat', authLimit, (req, res) => {
-  if (wechat.isMock()) return res.redirect('/auth/mock');
+  const entry = req.query.mode === 'entry';
+  if (wechat.isMock()) return res.redirect('/auth/mock' + (entry ? '?mode=entry' : ''));
+  setEntryMode(res, entry);
   const stateVal = crypto.randomBytes(8).toString('hex');
   res.setHeader(
     'Set-Cookie',
@@ -45,6 +63,8 @@ router.get('/auth/wechat/callback', authLimit, async (req, res, next) => {
     if (!code) return res.status(400).send('授权失败：缺少 code');
     const info = await wechat.exchangeUser(code);
     if (!info || !info.openid) return res.status(502).send('微信授权失败，请稍后重试');
+    const entry = readEntryMode(req);
+    setEntryMode(res, false); // 用后即清
     const signInOpen = state.getSetting('sign_in_enabled', '1') === '1';
     const existing = db.prepare('SELECT * FROM users WHERE openid = ?').get(info.openid);
     if (!existing && !signInOpen) {
@@ -55,19 +75,23 @@ router.get('/auth/wechat/callback', authLimit, async (req, res, next) => {
       nickname: info.nickname,
       avatarUrl: info.avatarUrl,
       source: 'wechat',
+      inPool: !entry, // 入场签到不进奖池；抽奖签到直接入池
     }));
     setUserCookie(res, user.id);
-    postLoginRedirect(res, user);
+    postLoginRedirect(res, user, entry ? 'entry' : 'draw');
   } catch (e) {
     next(e);
   }
 });
 
-/** Mock 登录页（开发/彩排/演示） */
+/** Mock 登录页（开发/彩排/演示）。?mode=entry = 入场签到 */
 router.get('/auth/mock', authLimit, (req, res) => {
   if (state.getSetting('sign_in_enabled', '1') !== '1' && !hasValidUser(req)) {
     return res.redirect('/?signin=closed');
   }
+  const entry = req.query.mode === 'entry';
+  const q = entry ? '?mode=entry' : '';
+  const qq = entry ? '?mode=entry&random=1' : '?random=1';
   res.type('html').send(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>模拟登录</title><style>
@@ -83,18 +107,19 @@ button{width:100%;padding:13px;border:none;border-radius:10px;font-size:16px;fon
 cursor:pointer;background:linear-gradient(135deg,#ffd700,#ffb300);color:#7a0000}
 button.ghost{background:transparent;color:#ffd700;border:1px solid rgba(255,215,0,.5);margin-top:10px}
 </style></head><body><div class="card">
-<h2>模拟登录（演示模式）</h2><p>未配置微信服务号，使用模拟身份签到</p>
-<form method="POST" action="/auth/mock">
+<h2>模拟登录（演示模式）</h2><p>${entry ? '入场签到：登记信息，不进入奖池' : '抽奖签到：授权后进入奖池'}</p>
+<form method="POST" action="/auth/mock${q}">
 <input name="name" placeholder="输入昵称（留空则随机）" maxlength="20">
-<button type="submit">签到进入奖池</button>
+<button type="submit">${entry ? '入场签到' : '签到进入奖池'}</button>
 </form>
-<form method="POST" action="/auth/mock?random=1"><button class="ghost" type="submit">用随机身份进入</button></form>
+<form method="POST" action="/auth/mock${qq}"><button class="ghost" type="submit">用随机身份进入</button></form>
 </div></body></html>`);
 });
 
 router.post('/auth/mock', authLimit, async (req, res, next) => {
   try {
     const signInOpen = state.getSetting('sign_in_enabled', '1') === '1';
+    const entry = req.query.mode === 'entry';
     // 稳定 device id：同一浏览器重进保持同一身份（模拟"扫码一次"）
     let devId = parseCookies(req.headers.cookie).ld_dev;
     if (!devId || !/^[\w-]{6,64}$/.test(devId)) {
@@ -105,7 +130,7 @@ router.post('/auth/mock', authLimit, async (req, res, next) => {
     const exist = db.prepare('SELECT * FROM users WHERE openid = ?').get(openid); // 幂等
     if (exist) {
       setUserCookie(res, exist.id);
-      return postLoginRedirect(res, exist); // 老用户：即使签到已关也放行（Cookie 丢失场景）
+      return postLoginRedirect(res, exist, entry ? 'entry' : 'draw'); // 老用户：即使签到已关也放行（Cookie 丢失场景）
     }
     if (!signInOpen) return res.redirect('/?signin=closed'); // 新用户且通道已关 → 拦截
     const inputName = req.query.random ? '' : ((req.body && req.body.name) || '').trim();
@@ -114,9 +139,10 @@ router.post('/auth/mock', authLimit, async (req, res, next) => {
       nickname: inputName || wechat.randomMockName(),
       avatarUrl: null,
       source: 'mock',
+      inPool: !entry,
     });
     setUserCookie(res, user.id);
-    postLoginRedirect(res, user);
+    postLoginRedirect(res, user, entry ? 'entry' : 'draw');
   } catch (e) {
     next(e);
   }

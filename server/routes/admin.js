@@ -217,7 +217,7 @@ router.get('/api/admin/users', requireAdmin, (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit || '400', 10) || 400, 1), 2000);
   const rows = db
     .prepare(
-      `SELECT id, COALESCE(NULLIF(real_name,''), nickname) AS nickname, real_name, nickname AS wechat_nickname, avatar, source, note, phone, dept, blocked, joined_at FROM users ORDER BY id ASC LIMIT ?`
+      `SELECT id, COALESCE(NULLIF(real_name,''), nickname) AS nickname, real_name, nickname AS wechat_nickname, avatar, source, note, phone, dept, in_pool, blocked, joined_at FROM users ORDER BY id ASC LIMIT ?`
     )
     .all(limit);
   res.json({ users: rows });
@@ -226,7 +226,8 @@ router.get('/api/admin/users', requireAdmin, (req, res) => {
 // ---- 工具 ----
 router.get('/api/admin/qrcode', requireAdmin, async (req, res) => {
   const claim = req.query.claim === '1';
-  const url = claim ? entryUrl() + '/?claim=1' : entryUrl();
+  const entry = req.query.entry === '1';
+  const url = claim ? entryUrl() + '/?claim=1' : entry ? entryUrl() + '/entry.html' : entryUrl();
   try {
     const dataUrl = await QRCode.toDataURL(url, { width: 480, margin: 2, color: { dark: '#5c0000', light: '#ffffff' } });
     res.json({ url, dataUrl });
@@ -271,7 +272,7 @@ router.get('/api/admin/export/users', requireAdmin, (req, res) => {
   }
   const srcName = { wechat: '微信', mock: '模拟', manual: '补录', seed: '种子' };
   const users = db.prepare('SELECT * FROM users ORDER BY id ASC').all();
-  const rows = [['序号', '姓名', '手机号', '企业/单位名称', '微信昵称', '来源', '中奖情况', '状态', '签到时间']];
+  const rows = [['序号', '姓名', '手机号', '企业/单位名称', '微信昵称', '来源', '是否入池', '中奖情况', '状态', '签到时间']];
   users.forEach((u, i) => {
     rows.push([
       i + 1,
@@ -280,6 +281,7 @@ router.get('/api/admin/export/users', requireAdmin, (req, res) => {
       u.dept || '',
       u.nickname || '',
       srcName[u.source] || u.source,
+      u.in_pool ? '已入池' : '仅入场',
       winInfo.get(u.id) || '未中奖',
       u.blocked ? '已排除' : '正常',
       new Date(u.joined_at).toLocaleString('zh-CN', { hour12: false }),

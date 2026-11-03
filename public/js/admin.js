@@ -154,6 +154,7 @@
         <img src="${u.avatar ? '/avatars/' + u.avatar : defaultAv}" onerror="this.src='${defaultAv}'">
         <span>${esc(u.nickname)}</span>
         <span class="src">${srcName}</span>
+        ${u.in_pool === 0 ? '<span class="badge gray">仅入场</span>' : ''}
         ${u.phone ? `<span class="note">📱${esc(u.phone)}</span>` : ''}
         ${u.dept ? `<span class="note">${esc(u.dept)}</span>` : ''}
         ${!u.phone && u.note ? `<span class="note">${esc(u.note)}</span>` : ''}
@@ -399,15 +400,25 @@
     a.click();
   };
 
-  $('btn-qr').onclick = () => openQrModal(false);
-  $('btn-claim-qr').onclick = () => openQrModal(true);
-  async function openQrModal(claim) {
+  $('btn-qr').onclick = () => openQrModal('draw');
+  $('btn-claim-qr').onclick = () => openQrModal('claim');
+  $('btn-entry-qr').onclick = () => openQrModal('entry');
+  async function openQrModal(kind) {
+    const qs = kind === 'claim' ? '?claim=1' : kind === 'entry' ? '?entry=1' : '';
     try {
-      const data = await call('GET', claim ? '/api/admin/qrcode?claim=1' : '/api/admin/qrcode');
-      $('qr-modal-title').textContent = claim ? '🎫 领奖查询二维码' : '签到入口二维码';
-      $('qr-modal-tip').textContent = claim
-        ? '打印张贴在领奖台：用户扫码即见是否中奖，中奖者显示领奖凭证码，与本页名单核对后发奖'
-        : '投到大屏 / 打印张贴均可，手机扫码进入';
+      const data = await call('GET', '/api/admin/qrcode' + qs);
+      const titles = {
+        draw: '🎁 抽奖入口二维码',
+        claim: '🎫 领奖查询二维码',
+        entry: '🚪 入场签到二维码',
+      };
+      const tips = {
+        draw: '大屏展示用（大屏会自动显示）。用户扫码 → 微信授权 → 进奖池参与抽奖',
+        claim: '打印张贴在领奖台：用户扫码即见是否中奖，中奖者显示领奖凭证码，与本页名单核对后发奖',
+        entry: '打印张贴在会场入口：用户扫码登记姓名/手机号（不进奖池）。之后扫大屏抽奖码，资料自动带出',
+      };
+      $('qr-modal-title').textContent = titles[kind];
+      $('qr-modal-tip').textContent = tips[kind];
       $('qr-img').src = data.dataUrl;
       $('qr-url').textContent = data.url;
       $('qr-modal').classList.remove('hidden');
