@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2720%27 fill=%27%23a31212%27/%3E%3Ctext x=%2750%27 y=%2768%27 text-anchor=%27middle%27 font-size=%2756%27 fill=%27%23ffd700%27 font-family=%27serif%27 font-weight=%27bold%27%3E%E5%A5%96%3C/text%3E%3C/svg%3E">
+<title>抽奖系统 · 管理台</title>
+<link rel="stylesheet" href="/css/base.css?v=10">
+<link rel="stylesheet" href="/css/admin.css?v=10">
+</head>
+<body>
+<!-- 密钥门 -->
+<div id="gate" class="gate">
+  <div class="card gate-card">
+    <h2>🧧 抽奖管理台</h2>
+    <p>请输入管理密钥（.env 中 ADMIN_KEY）</p>
+    <input id="gate-key" type="password" placeholder="管理密钥" autocomplete="off">
+    <button id="gate-btn" class="btn">进入</button>
+    <div id="gate-err" class="gate-err"></div>
+  </div>
+</div>
+
+<div id="app" class="app hidden">
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div class="brand">🧧 抽奖管理台 <span id="role-badge" class="badge gold">standalone</span></div>
+    <div class="sync-pill" id="sync-pill"><span class="sync-dot"></span><span id="sync-text">检测中…</span></div>
+    <div class="top-actions">
+      <button id="btn-export" class="btn ghost small">⬇ 导出中奖名单</button>
+      <button id="btn-claim-qr" class="btn ghost small">🎫 领奖查询码</button>
+      <button id="btn-qr" class="btn ghost small">入口二维码</button>
+    </div>
+  </header>
+
+  <!-- 活动设置条 -->
+  <section class="card strip">
+    <label>活动标题 <input id="inp-title" maxlength="60"></label>
+    <label>副标题 <input id="inp-subtitle" maxlength="80" placeholder="扫码参与 · 好运连连"></label>
+    <label class="switch-label"><input type="checkbox" id="inp-signin"> <span>签到通道开放</span></label>
+    <button id="btn-save-activity" class="btn small">保存</button>
+    <div class="strip-stats">
+      已签到 <b id="st-users">0</b> ｜ 奖池 <b id="st-pool">0</b> ｜ 已中奖 <b id="st-won">0</b>
+    </div>
+  </section>
+
+  <div class="layout">
+    <!-- 左：奖品轮次管理 -->
+    <section class="panel card">
+      <h3>🎁 奖品轮次管理 <span id="phase-badge" class="badge gray">idle</span></h3>
+      <div class="draw-flow">
+        <span class="flow-tip">开奖操作在<b>大屏页面</b>进行（选轮 → 滚动 → 揭晓）；本页负责配置奖品轮次与管理中奖记录（弃奖/补抽/回滚）。</span>
+      </div>
+      <div id="rounds-list" class="rounds-list"></div>
+      <div class="new-round card">
+        <h4>➕ 新建轮次</h4>
+        <div class="form-grid">
+          <label>顺序 <input id="nr-seq" type="number" min="1" placeholder="自动"></label>
+          <label>轮次名 <input id="nr-name" placeholder="如：第一轮"></label>
+          <label>奖品 <input id="nr-prize" placeholder="如：空气炸锅"></label>
+          <label>人数 <input id="nr-count" type="number" min="1" max="500" value="3"></label>
+          <label class="img-upload-label">奖品图片(选填)
+            <img id="nr-img-preview" class="prize-preview hidden" alt="">
+            <input id="nr-img" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+          </label>
+        </div>
+        <button id="btn-new-round" class="btn small">创建轮次</button>
+      </div>
+    </section>
+
+    <!-- 右：名单 & 数据 -->
+    <section class="panel card">
+      <h3>👥 参与名单</h3>
+      <div class="manual-row">
+        <input id="mu-name" placeholder="姓名（现场补录）">
+        <input id="mu-note" placeholder="手机尾号/备注(选填)" style="max-width:140px">
+        <button id="btn-manual" class="btn small">添加</button>
+      </div>
+      <div class="import-box">
+        <textarea id="import-text" rows="4" placeholder="批量导入兜底名单，每行：姓名,手机尾号&#10;张三,6688&#10;李四,1234"></textarea>
+        <button id="btn-import" class="btn ghost small">批量导入</button>
+      </div>
+      <div class="users-head">
+        <input id="user-search" placeholder="🔍 搜索姓名">
+        <span id="users-count" class="dim"></span>
+      </div>
+      <div id="users-list" class="users-list"></div>
+
+      <h3 class="danger-zone">⚠ 数据管理（彩排/重置）</h3>
+      <div class="danger-row">
+        <button id="btn-reset-winners" class="btn danger small">清空中奖记录（保留签到）</button>
+        <button id="btn-reset-all" class="btn danger small">清空全部数据</button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- 二维码弹层 -->
+<div id="qr-modal" class="modal hidden">
+  <div class="card modal-card">
+    <h3 id="qr-modal-title">签到入口二维码</h3>
+    <img id="qr-img" alt="二维码">
+    <div class="dim" id="qr-url"></div>
+    <div class="dim" style="margin-top:6px" id="qr-modal-tip">投到大屏 / 打印张贴均可，手机扫码进入</div>
+    <button class="btn ghost small" onclick="document.getElementById('qr-modal').classList.add('hidden')">关闭</button>
+  </div>
+</div>
+
+<!-- 编辑轮次弹层 -->
+<div id="edit-modal" class="modal hidden">
+  <div class="card modal-card edit-card">
+    <h3>✏️ 编辑轮次</h3>
+    <div class="form-grid edit-grid">
+      <label>顺序 <input id="er-seq" type="number" min="1"></label>
+      <label>轮次名 <input id="er-name" maxlength="50"></label>
+      <label>奖品 <input id="er-prize" maxlength="100"></label>
+      <label>人数 <input id="er-count" type="number" min="1" max="500"></label>
+      <label class="img-upload-label">奖品图片
+        <img id="er-img-preview" class="prize-preview hidden" alt="">
+        <input id="er-img" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+      </label>
+    </div>
+    <div class="edit-actions">
+      <button id="er-save" class="btn small">保存</button>
+      <button id="er-clear-img" class="btn ghost small">清除图片</button>
+      <button id="er-cancel" class="btn ghost small">取消</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/http.js?v=10"></script>
+<script src="/js/admin.js?v=10"></script>
+</body>
+</html>

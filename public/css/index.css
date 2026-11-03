@@ -1,0 +1,100 @@
+/* ============ 用户页（手机端） ============ */
+.page {
+  max-width: 560px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding: 26px 18px 40px;
+}
+
+header { text-align: center; padding: 26px 0 18px; }
+header h1 { font-size: 30px; font-weight: 900; }
+header p { margin-top: 6px; color: var(--ink-dim); font-size: 14px; letter-spacing: 0.25em; }
+
+.me-card {
+  display: flex; align-items: center; gap: 16px;
+  padding: 18px 20px; margin-top: 8px;
+  animation: pulse-glow 3.2s ease-in-out infinite;
+}
+.me-name { font-size: 20px; font-weight: 800; }
+.me-status { margin-top: 5px; font-size: 13px; color: var(--ink-dim); display: flex; align-items: center; gap: 6px; }
+.me-status .dot { width: 8px; height: 8px; border-radius: 50%; background: #7CFC98; box-shadow: 0 0 8px #7cfc98; animation: blink 1.6s infinite; }
+@keyframes blink { 50% { opacity: 0.35; } }
+
+.win-banner {
+  position: relative; overflow: hidden;
+  margin-top: 14px; padding: 20px; display: flex; align-items: center; gap: 18px;
+  border-color: rgba(255, 215, 0, 0.75);
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.16), rgba(255, 95, 95, 0.12));
+  animation: win-pop 0.6s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+.win-banner::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 38%;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  animation: win-sweep 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes win-sweep { to { left: 135%; } }
+@keyframes win-pop { 0% { transform: scale(0.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+.win-crown { font-size: 52px; filter: drop-shadow(0 4px 10px rgba(255, 215, 0, 0.5)); }
+.win-title { font-size: 15px; color: var(--gold-2); font-weight: 700; letter-spacing: 0.3em; }
+.win-prize { font-size: 26px; font-weight: 900; color: var(--gold-1); margin-top: 3px; }
+.win-round { font-size: 12px; color: var(--ink-dim); margin-top: 4px; }
+
+.stale-tip {
+  margin-top: 12px; padding: 9px 14px; border-radius: 10px; font-size: 13px;
+  background: rgba(0, 0, 0, 0.3); border: 1px dashed rgba(255, 215, 0, 0.4); color: var(--gold-1);
+}
+
+.rounds-section { margin-top: 26px; }
+.section-title { font-size: 16px; color: var(--gold-2); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+#rounds-list { display: flex; flex-direction: column; gap: 10px; }
+
+.round-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px;
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px;
+}
+.round-item.mine { border-color: rgba(255, 215, 0, 0.85); background: linear-gradient(135deg, rgba(255, 215, 0, 0.14), rgba(255, 255, 255, 0.04)); }
+.round-thumb {
+  width: 46px; height: 46px; flex: none;
+  border-radius: 10px; object-fit: cover;
+  border: 1px solid rgba(255, 215, 0, 0.4);
+}
+.round-seq {
+  width: 44px; height: 44px; flex: none; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 17px; color: #6b0a0a;
+  background: linear-gradient(135deg, var(--gold-2), var(--gold-4));
+}
+.round-main { flex: 1; min-width: 0; }
+.round-prize { font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.round-name { font-size: 12px; color: var(--ink-dim); margin-top: 3px; }
+.round-state { font-size: 12px; font-weight: 700; flex: none; }
+.round-state.wait { color: var(--ink-dim); }
+.round-state.live { color: #ffe066; animation: blink 1.2s infinite; }
+.round-state.done { color: #9fd6a0; }
+.round-state.won { color: #ffd700; text-shadow: 0 0 12px rgba(255, 215, 0, 0.7); }
+
+.hidden { display: none !important; }
+
+/* ---- 领奖查询视图 ---- */
+.claim-view { margin-top: 14px; padding: 30px 22px; text-align: center; }
+.claim-loading { color: var(--ink-dim); font-size: 14px; padding: 20px 0; }
+.claim-crown { font-size: 56px; filter: drop-shadow(0 4px 12px rgba(255, 215, 0, 0.5)); }
+.claim-title { font-size: 22px; color: var(--gold-2); font-weight: 900; letter-spacing: 0.3em; margin-top: 8px; }
+.claim-prize { font-size: 30px; font-weight: 900; color: var(--gold-1); margin-top: 6px; }
+.claim-round { font-size: 13px; color: var(--ink-dim); margin-top: 4px; }
+.claim-code-box { margin-top: 20px; padding: 16px; border-radius: 14px; border: 1.5px dashed rgba(255, 215, 0, 0.6); background: rgba(0, 0, 0, 0.22); }
+.claim-code-label { font-size: 12px; color: var(--ink-dim); letter-spacing: 0.3em; }
+.claim-code { font-size: 34px; font-weight: 900; color: var(--gold-1); letter-spacing: 0.22em; margin-top: 6px; font-variant-numeric: tabular-nums; text-shadow: 0 0 16px rgba(255, 215, 0, 0.4); }
+.claim-tip { font-size: 12px; color: var(--ink-dim); margin-top: 14px; }
+.claim-lose-icon { font-size: 52px; }
+.claim-lose-title { font-size: 20px; font-weight: 800; margin-top: 10px; color: var(--gold-1); }
+.claim-lose-sub { font-size: 13px; color: var(--ink-dim); margin-top: 8px; line-height: 1.7; }
+.foot { text-align: center; margin-top: 40px; color: rgba(255, 248, 231, 0.4); font-size: 12px; letter-spacing: 0.2em; }
+
+/* 签到关闭等提示态 */
+.signin-closed {
+  text-align: center; padding: 60px 20px;
+}
+.signin-closed .big { font-size: 40px; margin-bottom: 14px; }

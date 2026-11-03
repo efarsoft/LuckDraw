@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#6b0606">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2720%27 fill=%27%23a31212%27/%3E%3Ctext x=%2750%27 y=%2768%27 text-anchor=%27middle%27 font-size=%2756%27 fill=%27%23ffd700%27 font-family=%27serif%27 font-weight=%27bold%27%3E%E5%A5%96%3C/text%3E%3C/svg%3E">
+<title>幸运抽奖</title>
+<link rel="stylesheet" href="/css/base.css?v=10">
+<link rel="stylesheet" href="/css/index.css?v=10">
+</head>
+<body>
+<div class="page">
+
+  <!-- 顶部灯笼装饰 -->
+  <svg class="lantern l" viewBox="0 0 100 165" aria-hidden="true">
+    <defs><radialGradient id="lg1" cx="0.4" cy="0.35" r="0.9">
+      <stop offset="0" stop-color="#ff6b5e"/><stop offset="0.55" stop-color="#e01f1f"/><stop offset="1" stop-color="#9e0d0d"/>
+    </radialGradient></defs>
+    <line x1="50" y1="0" x2="50" y2="22" stroke="#ffd700" stroke-width="3"/>
+    <rect x="34" y="20" width="32" height="10" rx="4" fill="#ffd700"/>
+    <ellipse cx="50" cy="80" rx="43" ry="46" fill="url(#lg1)"/>
+    <path d="M22 66 q28 -16 56 0 M20 96 q30 -14 60 0" stroke="#ffd700" stroke-opacity="0.45" fill="none" stroke-width="2"/>
+    <text x="50" y="93" text-anchor="middle" font-size="42" fill="#ffd700" font-weight="bold" font-family="KaiTi,STKaiti,serif">福</text>
+    <rect x="37" y="122" width="26" height="8" rx="4" fill="#ffd700"/>
+    <line x1="50" y1="130" x2="50" y2="158" stroke="#ffd700" stroke-width="3"/>
+    <line x1="42" y1="130" x2="42" y2="150" stroke="#ffd700" stroke-width="2"/>
+    <line x1="58" y1="130" x2="58" y2="150" stroke="#ffd700" stroke-width="2"/>
+  </svg>
+  <svg class="lantern r" viewBox="0 0 100 165" aria-hidden="true">
+    <defs><radialGradient id="lg2" cx="0.4" cy="0.35" r="0.9">
+      <stop offset="0" stop-color="#ff6b5e"/><stop offset="0.55" stop-color="#e01f1f"/><stop offset="1" stop-color="#9e0d0d"/>
+    </radialGradient></defs>
+    <line x1="50" y1="0" x2="50" y2="22" stroke="#ffd700" stroke-width="3"/>
+    <rect x="34" y="20" width="32" height="10" rx="4" fill="#ffd700"/>
+    <ellipse cx="50" cy="80" rx="43" ry="46" fill="url(#lg2)"/>
+    <path d="M22 66 q28 -16 56 0 M20 96 q30 -14 60 0" stroke="#ffd700" stroke-opacity="0.45" fill="none" stroke-width="2"/>
+    <text x="50" y="93" text-anchor="middle" font-size="42" fill="#ffd700" font-weight="bold" font-family="KaiTi,STKaiti,serif">运</text>
+    <rect x="37" y="122" width="26" height="8" rx="4" fill="#ffd700"/>
+    <line x1="50" y1="130" x2="50" y2="158" stroke="#ffd700" stroke-width="3"/>
+    <line x1="42" y1="130" x2="42" y2="150" stroke="#ffd700" stroke-width="2"/>
+    <line x1="58" y1="130" x2="58" y2="150" stroke="#ffd700" stroke-width="2"/>
+  </svg>
+
+  <header>
+    <h1 id="act-title" class="gold-text">年度盛典 · 幸运抽奖</h1>
+    <p id="act-subtitle"></p>
+  </header>
+
+  <!-- 中奖横幅 -->
+  <section id="win-banner" class="card win-banner hidden">
+    <div class="win-crown">🏆</div>
+    <div class="win-text">
+      <div class="win-title">恭喜中奖</div>
+      <div id="win-prize" class="win-prize"></div>
+      <div id="win-round" class="win-round"></div>
+    </div>
+  </section>
+
+  <!-- 我的卡片 -->
+  <section class="card me-card">
+    <img id="me-avatar" class="avatar" width="72" height="72" alt="">
+    <div class="me-info">
+      <div id="me-name" class="me-name">…</div>
+      <div class="me-status"><span class="dot"></span>已进入奖池 · 坐等好运</div>
+    </div>
+  </section>
+
+  <div id="stale-tip" class="stale-tip hidden">📡 现场网络波动，中奖结果以大屏公布为准</div>
+
+  <!-- 领奖查询视图（领奖台二维码 ?claim=1 进入） -->
+  <section id="claim-view" class="card claim-view hidden">
+    <div id="claim-body"><div class="claim-loading">查询中…</div></div>
+  </section>
+
+  <!-- 轮次进度 -->
+  <section class="rounds-section">
+    <h2 class="section-title"><span>🎁</span> 开奖进度</h2>
+    <div id="rounds-list"></div>
+  </section>
+
+  <footer class="foot">祝您好运连连 🧧</footer>
+</div>
+
+<script src="/js/http.js?v=10"></script>
+<script src="/js/confetti.js?v=10"></script>
+<script src="/js/index.js?v=10"></script>
+</body>
+</html>

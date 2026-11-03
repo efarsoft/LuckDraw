@@ -1,0 +1,594 @@
+/* ============ 大屏页：长轮询 + 转盘动画 + 揭晓序列 + 音效 ============ */
+(function () {
+  const $ = (id) => document.getElementById(id);
+  let cur = null;
+  let prevSig = null;
+  let pollV = 0;
+
+  // ---------- 金粒子 ----------
+  (function goldDust() {
+    const box = document.createElement('div');
+    box.id = 'gold-dust';
+    for (let i = 0; i < 26; i++) {
+      const s = document.createElement('span');
+      const size = 4 + Math.random() * 10;
+      s.style.width = s.style.height = size + 'px';
+      s.style.left = Math.random() * 100 + '%';
+      s.style.animationDuration = 9 + Math.random() * 14 + 's';
+      s.style.animationDelay = -Math.random() * 20 + 's';
+      s.style.opacity = 0.25 + Math.random() * 0.5;
+      box.appendChild(s);
+    }
+    $('stage').appendChild(box);
+  })();
+
+  // ---------- 音效（WebAudio 合成，无音频文件） ----------
+  const AudioFX = {
+    ctx: null,
+    muted: localStorage.getItem('ld_muted') === '1',
+    ensure() {
+      if (this.muted) return null;
+      if (!this.ctx) {
+        try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; }
+      }
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      return this.ctx;
+    },
+    tone(freq, t0, dur, type = 'triangle', vol = 0.22) {
+      const ctx = this.ensure();
+      if (!ctx) return;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type; o.frequency.value = freq;
+      g.gain.setValueAtTime(0, ctx.currentTime + t0);
+      g.gain.linearRampToValueAtTime(vol, ctx.currentTime + t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t0 + dur);
+      o.connect(g).connect(ctx.destination);
+      o.start(ctx.currentTime + t0);
+      o.stop(ctx.currentTime + t0 + dur + 0.05);
+    },
+    ding(i) {
+      this.tone(660 + (i % 5) * 110, 0, 0.5, 'sine', 0.28);
+      this.tone(1320 + (i % 5) * 110, 0.03, 0.3, 'sine', 0.12);
+      this.thump();
+    },
+    /** 低音鼓：正弦快速下滑，增强揭晓冲击感 */
+    thump() {
+      const ctx = this.ensure();
+      if (!ctx) return;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(150, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(42, ctx.currentTime + 0.22);
+      g.gain.setValueAtTime(0.5, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      o.connect(g).connect(ctx.destination);
+      o.start(); o.stop(ctx.currentTime + 0.32);
+    },
+    fanfare() {
+      const seq = [523, 659, 784, 1047, 1319];
+      seq.forEach((f, i) => this.tone(f, i * 0.12, 0.5, 'triangle', 0.2));
+      this.tone(1568, 0.62, 0.9, 'triangle', 0.24);
+      this.thump();
+    },
+    drumTimer: null,
+    drumrollStart() {
+      if (this.drumTimer || this.muted) return;
+      const tick = () => {
+        const ctx = this.ensure();
+        if (!ctx) return;
+        const len = 0.05, buf = ctx.createBuffer(1, ctx.sampleRate * len, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+        const src = ctx.createBufferSource(); src.buffer = buf;
+        const g = ctx.createGain(); g.gain.value = 0.16;
+        src.connect(g).connect(ctx.destination); src.start();
+      };
+      tick();
+      this.drumTimer = setInterval(tick, 105);
+    },
+    drumrollStop() { clearInterval(this.drumTimer); this.drumTimer = null; },
+  };
+  $('btn-sound').textContent = AudioFX.muted ? '🔇' : '🔊';
+  function toggleMute() {
+    AudioFX.muted = !AudioFX.muted;
+    localStorage.setItem('ld_muted', AudioFX.muted ? '1' : '0');
+    $('btn-sound').textContent = AudioFX.muted ? '🔇' : '🔊';
+    if (AudioFX.muted) AudioFX.drumrollStop();
+  }
+  $('btn-sound').onclick = toggleMute;
+  function toggleFull() {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
+  }
+  $('btn-full').onclick = toggleFull;
+
+  // ================= 开奖控制（主持人在大屏直接开奖，复用管理端 API） =================
+  const CTL = {
+    key: localStorage.getItem('ld_admin_key') || '',
+    busy: false,
+    async call(method, path, body) {
+      const resp = await fetch(path, {
+        method,
+        cache: 'no-store',
+        headers: { 'x-admin-key': CTL.key, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+      if (resp.status === 401) {
+        CTL.key = '';
+        localStorage.removeItem('ld_admin_key');
+        updateLock();
+        openKeyModal();
+        throw new Error('管理密钥无效');
+      }
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+      updateLock();
+      return data;
+    },
+    ensureKey() {
+      if (!CTL.key) { openKeyModal(); return false; }
+      return true;
+    },
+  };
+  function updateLock() { $('ck-lock').textContent = CTL.key ? '🔐' : '🔓'; }
+  function openKeyModal() {
+    $('key-modal').classList.remove('hidden');
+    $('ck-key').value = CTL.key;
+    $('ck-key').focus();
+  }
+  async function submitKey() {
+    const k = $('ck-key').value.trim();
+    if (!k) return;
+    try {
+      const resp = await fetch('/api/admin/overview', { headers: { 'x-admin-key': k }, cache: 'no-store' });
+      if (!resp.ok) return showToast('密钥错误');
+      CTL.key = k;
+      localStorage.setItem('ld_admin_key', k);
+      $('key-modal').classList.add('hidden');
+      updateLock();
+      showToast('🔓 开奖授权成功');
+    } catch { showToast('验证失败，请重试'); }
+  }
+  $('ck-key-ok').onclick = submitKey;
+  $('ck-key').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitKey(); });
+  $('key-modal').addEventListener('click', (e) => { if (e.target === $('key-modal')) $('key-modal').classList.add('hidden'); });
+  $('ck-lock').onclick = openKeyModal;
+  updateLock();
+
+  function updateDock(s) {
+    const rounds = s.rounds || [];
+    const curR = rounds.find((r) => r.id === s.current_round_id) || null;
+    const pendings = rounds.filter((r) => r.status === 'pending');
+    const label = $('ck-round-label');
+    const primary = $('ck-primary');
+
+    label.textContent = curR
+      ? `${curR.seq}. ${curR.name} · ${curR.prize_name}${curR.status === 'drawn' ? '（已开）' : ''}`
+      : pendings.length
+        ? `下一场：${pendings[0].seq}. ${pendings[0].name}`
+        : '无待开轮次';
+
+    let text = '开始抽奖', disabled = false;
+    if (s.phase === 'rolling') {
+      text = '🎉 立即揭晓';
+    } else if (s.phase === 'ready') {
+      if (curR && curR.status === 'pending') text = '🎡 开始滚动';
+      else { text = '待选轮次'; disabled = true; }
+    } else if (s.phase === 'reveal' && curR && curR.status === 'drawn') {
+      text = pendings.length ? `下一轮 → ${pendings[0].name}` : '↩ 返回签到页';
+    } else {
+      // idle（或异常相位）：选下一待开轮次
+      const target = curR && curR.status === 'pending' ? curR : pendings[0];
+      if (target) text = `▶ 开始 ${target.name}`;
+      else { text = '轮次已全部开完'; disabled = true; }
+    }
+    primary.textContent = text;
+    primary.disabled = disabled || CTL.busy;
+    primary.dataset.phase = s.phase;
+  }
+
+  async function primaryAction() {
+    if (CTL.busy || !cur) return;
+    if (!CTL.ensureKey()) return;
+    const rounds = cur.rounds || [];
+    const curR = rounds.find((r) => r.id === cur.current_round_id) || null;
+    const pendings = rounds.filter((r) => r.status === 'pending');
+    CTL.busy = true;
+    $('ck-primary').disabled = true;
+    try {
+      if (cur.phase === 'rolling' && curR) {
+        await CTL.call('POST', `/api/admin/rounds/${curR.id}/draw`);
+      } else if (cur.phase === 'ready' && curR && curR.status === 'pending') {
+        await CTL.call('POST', '/api/admin/phase', { phase: 'rolling' });
+      } else {
+        // idle / 揭晓完成：开下一轮或返回签到
+        const target = (curR && curR.status === 'pending' && cur.phase !== 'reveal') ? curR : pendings[0];
+        if (target) await CTL.call('POST', `/api/admin/rounds/${target.id}/select`);
+        else await CTL.call('POST', '/api/admin/phase', { phase: 'idle' });
+      }
+    } catch (e) {
+      showToast('⚠ ' + (e.message || '操作失败'));
+    } finally {
+      CTL.busy = false;
+      if (cur) updateDock(cur);
+    }
+  }
+  $('ck-primary').onclick = primaryAction;
+  $('ck-idle').onclick = async () => {
+    if (!CTL.ensureKey()) return;
+    try { await CTL.call('POST', '/api/admin/phase', { phase: 'idle' }); } catch (e) { showToast('⚠ ' + e.message); }
+  };
+  async function cycleRound(dir) {
+    if (!cur || CTL.busy) return;
+    const rounds = cur.rounds || [];
+    if (!rounds.length) return;
+    if (!CTL.ensureKey()) return;
+    const idx = rounds.findIndex((r) => r.id === cur.current_round_id);
+    const nextIdx = (((idx < 0 ? 0 : idx + dir) % rounds.length) + rounds.length) % rounds.length;
+    const target = rounds[nextIdx];
+    CTL.busy = true;
+    try { await CTL.call('POST', `/api/admin/rounds/${target.id}/select`); }
+    catch (e) { showToast('⚠ ' + (e.message || '操作失败')); }
+    finally { CTL.busy = false; }
+  }
+  $('ck-prev').onclick = () => cycleRound(-1);
+  $('ck-next').onclick = () => cycleRound(1);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'm' || e.key === 'M') toggleMute();
+    if (e.key === 'f' || e.key === 'F') toggleFull();
+    const typing = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
+    if (typing) return;
+    if (e.key === 'ArrowLeft') cycleRound(-1);
+    else if (e.key === 'ArrowRight') cycleRound(1);
+    else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); primaryAction(); }
+  });
+
+  // ---------- 3D 头像星球（斐波那契球面 + 透视投影；支持双星球对转） ----------
+  function buildSphere(el, cfg) {
+    return {
+      el, cfg, pts: [], sig: '',
+      rotY: cfg.rot0 || 0,
+      speed: cfg.speed0,
+      target: cfg.speed0,
+      R: 240,
+      F: 900, // 透视焦距
+      update(sample) {
+        const sig = sample.map((u) => u.id).join(',');
+        if (sig === this.sig) return;
+        this.sig = sig;
+        this.el.innerHTML = '';
+        this.pts = [];
+        if (!sample.length) return;
+        let list;
+        if (sample.length > cfg.count) {
+          // 均匀抽样，保持每次重建采样稳定
+          const step = sample.length / cfg.count;
+          list = Array.from({ length: cfg.count }, (_, i) => sample[Math.floor(i * step)]);
+        } else {
+          list = sample.slice();
+          while (list.length < 12) list = list.concat(list); // 少量用户时补密度
+        }
+        const n = list.length;
+        const golden = Math.PI * (3 - Math.sqrt(5));
+        for (let i = 0; i < n; i++) {
+          const y = 1 - (i / (n - 1)) * 2;
+          const rad = Math.sqrt(Math.max(0, 1 - y * y));
+          const theta = golden * i;
+          const img = document.createElement('img');
+          img.className = 'sp-av';
+          img.src = list[i].avatar || defaultAvatar();
+          img.alt = '';
+          img.onerror = () => { img.onerror = null; img.src = defaultAvatar(); };
+          this.el.appendChild(img);
+          this.pts.push({ el: img, x: Math.cos(theta) * rad, y, z: Math.sin(theta) * rad });
+        }
+        this.resize();
+      },
+      resize() {
+        this.R = Math.min(window.innerWidth, window.innerHeight) * 0.36 * cfg.radiusFactor;
+        const size = Math.max(22, Math.min(96, this.R * cfg.sizeFactor));
+        for (const p of this.pts) p.el.style.width = p.el.style.height = size + 'px';
+      },
+      frame(dt, t) {
+        if (!this.pts.length) return;
+        this.speed += (this.target - this.speed) * Math.min(1, dt * 1.5);
+        this.rotY += this.speed * dt;
+        const rolling = $('main-stage').dataset.phase === 'rolling';
+        const tilt = cfg.tilt + (rolling ? Math.sin(t / 360 + cfg.phase) * 0.09 : Math.sin(t / 2400 + cfg.phase) * 0.02);
+        const cy = Math.cos(this.rotY), sy = Math.sin(this.rotY);
+        const cx = Math.cos(tilt), sx = Math.sin(tilt);
+        for (const p of this.pts) {
+          const x1 = p.x * cy + p.z * sy;      // 绕 Y 轴自转
+          const z1 = -p.x * sy + p.z * cy;
+          const y2 = p.y * cx - z1 * sx;       // 绕 X 轴倾斜
+          const z2 = p.y * sx + z1 * cx;
+          const s = this.F / (this.F - z2 * this.R); // 前大后小
+          p.el.style.transform =
+            `translate(-50%,-50%) translate3d(${(x1 * this.R * s).toFixed(1)}px, ${(y2 * this.R * s).toFixed(1)}px, 0) scale(${s.toFixed(3)})`;
+          const depth = 0.28 + 0.72 * (z2 + 1) / 2; // 前亮后暗
+          p.el.style.opacity = (depth * cfg.dim).toFixed(2);
+          p.el.style.zIndex = Math.round((z2 + 1) * 100);
+        }
+      },
+    };
+  }
+
+  // 主星球 + 外圈反向慢速小星球环（层次感）
+  const sphere = buildSphere($('sphere'), {
+    count: 100, radiusFactor: 1, sizeFactor: 0.19, tilt: -0.3, speed0: 0.12, dim: 1, phase: 0,
+  });
+  const sphere2 = buildSphere($('sphere2'), {
+    count: 30, radiusFactor: 1.45, sizeFactor: 0.10, tilt: 0.22, speed0: -0.06, dim: 0.5, phase: 2.1, rot0: 1.7,
+  });
+
+  function defaultAvatar() {
+    return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Crect width='72' height='72' fill='%23a31212'/%3E%3Ccircle cx='36' cy='28' r='12' fill='%23ffd700'/%3E%3Cpath d='M14 62c3-12 12-18 22-18s19 6 22 18z' fill='%23ffd700'/%3E%3C/svg%3E";
+  }
+
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { sphere.resize(); sphere2.resize(); }, 250);
+  });
+
+  let lastT = performance.now();
+  (function loop(t) {
+    const dt = Math.min(0.05, (t - lastT) / 1000);
+    lastT = t;
+    sphere.frame(dt, t);
+    sphere2.frame(dt, t);
+    requestAnimationFrame(loop);
+  })(lastT);
+
+  // ---------- 中央滚动 ----------
+  let rollTimer = null;
+  function rollStart(sample) {
+    rollStop();
+    const img = $('roll-avatar'), name = $('roll-name');
+    img.onerror = () => (img.src = defaultAvatar());
+    const pool = sample.length ? sample : null;
+    const pick = () => {
+      const u = pool ? pool[(Math.random() * pool.length) | 0] : null;
+      if (u) { img.src = u.avatar || defaultAvatar(); name.textContent = u.nickname; }
+      else { img.src = defaultAvatar(); name.textContent = '???'; }
+    };
+    pick();
+    rollTimer = setInterval(pick, 95);
+  }
+  function rollStop() { clearInterval(rollTimer); rollTimer = null; }
+
+  // ---------- 阶段切换 ----------
+  function show(box) {
+    for (const id of ['c-qr', 'c-prize', 'c-roll', 'c-reveal']) $(id).classList.toggle('hidden', id !== box);
+  }
+
+  /** 揭晓瞬间：全屏闪光 + 震屏 */
+  function flashAndShake() {
+    const flash = $('flash-layer');
+    flash.classList.remove('on');
+    void flash.offsetWidth; // 重置动画
+    flash.classList.add('on');
+    const stage = $('stage');
+    stage.classList.remove('shake');
+    void stage.offsetWidth;
+    stage.classList.add('shake');
+    setTimeout(() => stage.classList.remove('shake'), 550);
+  }
+
+  // ---------- 3·2·1 倒计时（滚动开场编排，主持人揭晓可随时打断） ----------
+  let phaseToken = 0;
+  function playCountdown(done) {
+    const box = $('countdown');
+    const seq = [
+      { n: '3', f: 659 },
+      { n: '2', f: 784 },
+      { n: '1', f: 988 },
+    ];
+    box.classList.remove('hidden');
+    seq.forEach((it, i) => {
+      setTimeout(() => {
+        if (!box.classList.contains('hidden')) {
+          box.innerHTML = `<span>${it.n}</span>`;
+          AudioFX.tone(it.f, 0, 0.42, 'sine', 0.3);
+        }
+      }, i * 700);
+    });
+    setTimeout(() => {
+      box.classList.add('hidden');
+      box.innerHTML = '';
+      done();
+    }, seq.length * 700 + 120);
+  }
+
+  function applyPhase(s) {
+    const phase = s.phase;
+    const round = s.rounds.find((r) => r.id === s.current_round_id) || null;
+    const allWinners = s.winners_by_round[s.current_round_id] || [];
+    const valid = allWinners.filter((w) => w.status === 'valid');
+
+    $('main-stage').dataset.phase = phase;
+
+    if (phase === 'rolling') {
+      show('c-roll');
+      $('reveal-board').classList.add('hidden');
+      rollStart(s.pool_sample);
+      // 编排：先蓄势减速 → 3·2·1 倒计时 → 星球瞬间拉满转速 + 擂鼓
+      const my = ++phaseToken;
+      sphere.target = 0.85;
+      sphere2.target = -0.4;
+      playCountdown(() => {
+        if (phaseToken !== my) return; // 倒计时期间已切阶段（如直接揭晓）
+        sphere.target = 2.9;
+        sphere2.target = -1.2;
+        AudioFX.drumrollStart();
+      });
+      return;
+    }
+    phaseToken++; // 使未完成的倒计时回调失效
+    $('countdown').classList.add('hidden');
+    rollStop();
+    AudioFX.drumrollStop();
+
+    if (phase === 'reveal' && round) {
+      sphere.target = 0.5; // 减速余韵
+      sphere2.target = -0.24;
+      playReveal(round, valid, allWinners, s);
+      return;
+    }
+    if (phase === 'ready' && round) {
+      show('c-prize');
+      $('reveal-board').classList.add('hidden');
+      $('prize-round').textContent = round.name;
+      $('prize-name').textContent = round.prize_name;
+      const pimg = $('prize-img');
+      if (round.prize_image) {
+        pimg.src = round.prize_image;
+        pimg.onerror = () => pimg.classList.add('hidden');
+        pimg.classList.remove('hidden');
+      } else pimg.classList.add('hidden');
+      $('prize-count').textContent = `名额 ${round.winner_count} 人`;
+      $('prize-tip').textContent = '准备开奖…';
+      sphere.target = 0.55; // 中速蓄势
+      sphere2.target = -0.28;
+      return;
+    }
+    // idle（或 ready 前的间隙）：缓慢流动的签到氛围
+    show('c-qr');
+    $('reveal-board').classList.add('hidden');
+    sphere.target = 0.12;
+    sphere2.target = -0.06;
+    loadQR();
+  }
+
+  function loadQR() {
+    const img = $('qr-img');
+    if (img.src) return;
+    http.get('/api/screen/qr').then(({ data }) => { if (data && data.dataUrl) img.src = data.dataUrl; }).catch(() => {});
+  }
+
+  function playReveal(round, valid, all, s) {
+    show('c-reveal');
+    const center = $('c-reveal');
+    center.innerHTML = '';
+    if (!valid.length) {
+      center.innerHTML = '<div class="prize-label">本轮暂无有效中奖名单</div>';
+      showBoard(round, all, s);
+      return;
+    }
+    valid.forEach((w, i) => {
+      setTimeout(() => {
+        center.innerHTML = '';
+        const d = document.createElement('div');
+        d.className = 'reveal-hero';
+        d.style.position = 'relative';
+        d.innerHTML = `<div class="crown">👑</div><img src="${w.avatar || defaultAvatar()}" onerror="this.src='${defaultAvatar()}'" class="avatar" alt="">
+          <div class="rh-name">${escapeHtml(w.nickname || '幸运儿')}</div>
+          <div class="rh-prize">🎉 ${escapeHtml(round.prize_name)}</div>`;
+        center.appendChild(d);
+        const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+        flashAndShake();
+        confetti.burst(cx, cy, { count: 110, speed: 13, lift: 7 });
+        confetti.burst(cx, cy, { count: 40, speed: 6, lift: 3 }); // 第二层慢速金屑
+        AudioFX.ding(i);
+      }, i * 780);
+    });
+    setTimeout(() => {
+      showBoard(round, all, s);
+      confetti.celebrate(3);
+      AudioFX.fanfare();
+    }, valid.length * 780 + 500);
+  }
+
+  function showBoard(round, all, s) {
+    $('rb-title').textContent = `🎉 ${round.name} · ${round.prize_name}`;
+    const grid = $('rb-grid');
+    grid.innerHTML = '';
+    for (const w of all) {
+      const c = document.createElement('div');
+      c.className = 'rb-cell' + (w.status === 'voided' ? ' voided' : '');
+      c.innerHTML = `<img src="${w.avatar || defaultAvatar()}" onerror="this.src='${defaultAvatar()}'" alt=""><span class="n">${escapeHtml(w.nickname || '幸运儿')}</span>`;
+      grid.appendChild(c);
+    }
+    $('reveal-board').classList.remove('hidden');
+  }
+
+  // ---------- 常规信息渲染 ----------
+  let lastSignCount = null;
+  function tweenNumber(el, to, ms = 650) {
+    const from = parseInt(el.textContent.replace(/\D/g, ''), 10) || 0;
+    if (from === to) return;
+    const t0 = performance.now();
+    (function step(t) {
+      const k = Math.min(1, (t - t0) / ms);
+      const eased = 1 - Math.pow(1 - k, 3);
+      el.textContent = Math.round(from + (to - from) * eased);
+      if (k < 1) requestAnimationFrame(step);
+    })(t0);
+  }
+
+  function renderStatic(s) {
+    $('act-title').textContent = s.activity.title || '幸运抽奖';
+    $('act-subtitle').textContent = s.activity.subtitle || '';
+    document.title = (s.activity.title || '幸运抽奖') + ' · 大屏';
+    $('stat-signed').textContent = s.sign_count;
+    // 奖池人数不对外展示（只开不减的观感问题）；管理台后台仍可见
+    if (lastSignCount !== s.sign_count) {
+      tweenNumber($('sign-count'), s.sign_count); // 中央翻牌器
+      lastSignCount = s.sign_count;
+    }
+    let won = 0;
+    for (const list of Object.values(s.winners_by_round)) {
+      won += list.filter((w) => w.status === 'valid').length;
+    }
+    $('stat-won').textContent = won;
+
+    // 底部滚动条：历轮中奖名单
+    const parts = [];
+    for (const r of s.rounds) {
+      const list = (s.winners_by_round[r.id] || []).filter((w) => w.status === 'valid');
+      if (list.length) parts.push(`${r.name}【${r.prize_name}】：${list.map((w) => w.nickname).join('、')}`);
+    }
+    $('ticker-inner').textContent = parts.length
+      ? '🎊 ' + parts.join('　｜　')
+      : '静候开奖，祝大家好运连连 🧧';
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function onState(s) {
+    cur = s;
+    renderStatic(s);
+    updateDock(s);
+    sphere.update(s.pool_sample || []);
+    sphere2.update(s.pool_sample || []);
+    const list = s.winners_by_round[s.current_round_id] || [];
+    const sig = [s.phase, s.current_round_id, list.map((w) => w.id + w.status).join(','), s.pool_count].join('|');
+    if (sig !== prevSig) {
+      prevSig = sig;
+      applyPhase(s);
+    }
+  }
+
+  // ---------- 长轮询 ----------
+  let polling = false;
+  async function poll() {
+    if (polling || document.hidden) return;
+    polling = true;
+    try {
+      const { status, data } = await http.get(`/api/screen/state?v=${pollV}&wait=25000`, { retries: 1, timeoutMs: 31000 });
+      if (status === 200 && data) { pollV = data.v; onState(data); }
+    } catch {
+      await new Promise((r) => setTimeout(r, 3000));
+    } finally {
+      polling = false;
+    }
+    setTimeout(poll, 400);
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+  document.addEventListener('click', () => AudioFX.ensure(), { once: true });
+
+  poll();
+})();
