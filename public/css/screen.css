@@ -1,4 +1,6 @@
 /* ============ 大屏页（16:9 投影） ============ */
+:root { --font-display: 'STXingkai', 'LiSu', 'KaiTi', 'STKaiti', 'FangSong', serif; }
+
 #stage {
   position: relative;
   width: 100vw; height: 100vh;
@@ -8,13 +10,34 @@
 .lantern.big { width: clamp(64px, 8.5vmin, 130px); filter: drop-shadow(0 6px 14px rgba(0,0,0,.35)) drop-shadow(0 0 18px rgba(255, 80, 40, 0.35)); }
 
 header { text-align: center; padding: 2.6vmin 0 1vmin; flex: none; z-index: 3; }
-header h1 { font-size: clamp(26px, 5.4vmin, 66px); font-weight: 900; letter-spacing: 0.12em; }
+header h1 {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 6.2vmin, 84px);
+  font-weight: 900; letter-spacing: 0.14em;
+}
 header p { margin-top: 0.6vmin; color: var(--ink-dim); font-size: clamp(11px, 1.7vmin, 20px); letter-spacing: 0.5em; }
 
-main { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; overflow: hidden; }
+/* ---- 导播镜头：阶段切换整体推拉 ---- */
+main {
+  flex: 1; position: relative; display: flex; align-items: center; justify-content: center;
+  min-height: 0; overflow: hidden;
+  transform-origin: 50% 44%;
+  transition: transform 1s cubic-bezier(0.22, 0.85, 0.3, 1);
+}
+#main-stage[data-phase="ready"]  { transform: scale(1.05); }
+#main-stage[data-phase="rolling"] { transform: scale(1.09) translateY(-0.8%); }
+#main-stage[data-phase="reveal"] { transform: scale(1.03); }
+#main-stage.punch { animation: camera-punch 0.7s cubic-bezier(0.2, 0.9, 0.3, 1); }
+@keyframes camera-punch {
+  0% { transform: scale(1.16); }
+  100% { transform: scale(1.03); }
+}
+
+/* ---- 星域背景（Canvas，JS 驱动） ---- */
+#starfield { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 
 /* ---- 3D 头像星球 ---- */
-#sphere-stage { position: absolute; inset: 0; z-index: 0; }
+#sphere-stage { position: absolute; inset: 0; z-index: 1; }
 #sphere-halo {
   position: absolute; left: 50%; top: 50%;
   width: 96vmin; height: 96vmin;
@@ -38,6 +61,11 @@ main { flex: 1; position: relative; display: flex; align-items: center; justify-
   box-shadow: 0 0 10px rgba(255, 180, 0, 0.28);
   background: #7a1515;
   will-change: transform, opacity;
+}
+/* 聚光寻人：被点亮的头像 */
+.sp-av.lit {
+  border-color: #ffe066;
+  box-shadow: 0 0 20px rgba(255, 220, 80, 0.95), 0 0 48px rgba(255, 170, 40, 0.55);
 }
 /* 滚动：星球辉光加速感；揭晓：整体压暗退居幕后 */
 #main-stage[data-phase="rolling"] #sphere,
@@ -115,7 +143,7 @@ main { flex: 1; position: relative; display: flex; align-items: center; justify-
   box-shadow: 0 8px 34px rgba(0, 0, 0, 0.45), 0 0 30px rgba(255, 200, 60, 0.25);
   background: rgba(0, 0, 0, 0.2);
 }
-.prize-name { font-size: clamp(30px, 6.8vmin, 96px); font-weight: 900; margin: 1vmin 0; }
+.prize-name { font-family: var(--font-display); font-size: clamp(30px, 6.8vmin, 96px); font-weight: 900; margin: 1vmin 0; }
 .prize-count { font-size: clamp(12px, 2vmin, 24px); color: var(--ink-dim); }
 .prize-ready-tip { margin-top: 1.4vmin; font-size: clamp(12px, 1.8vmin, 22px); color: #ffe066; animation: blink 1.4s infinite; }
 
@@ -130,7 +158,8 @@ main { flex: 1; position: relative; display: flex; align-items: center; justify-
   50% { box-shadow: 0 0 58px rgba(255, 215, 0, 0.75), 0 0 0 14px rgba(255, 215, 0, 0); }
 }
 .roll-name {
-  margin-top: 1.4vmin; font-size: clamp(18px, 4vmin, 52px); font-weight: 900; color: var(--gold-1);
+  margin-top: 1.4vmin; font-family: var(--font-display);
+  font-size: clamp(18px, 4vmin, 52px); font-weight: 900; color: var(--gold-1);
   text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
 }
 
@@ -147,6 +176,7 @@ main { flex: 1; position: relative; display: flex; align-items: center; justify-
 }
 .reveal-hero img { width: clamp(80px, 17vmin, 230px); height: clamp(80px, 17vmin, 230px); border-width: 5px; box-shadow: 0 0 46px rgba(255, 200, 40, 0.55); }
 .reveal-hero .rh-name {
+  font-family: var(--font-display);
   font-size: clamp(18px, 4vmin, 54px); font-weight: 900; color: var(--gold-1);
   animation: name-neon 1.5s ease-in-out infinite alternate;
 }

@@ -1,12 +1,12 @@
 /* Service Worker：用户页壳缓存（应对蜂窝弱网，页面秒开） */
-const CACHE = 'luckydraw-shell-v10';
+const CACHE = 'luckydraw-shell-v11';
 const SHELL = [
   '/',
-  '/css/base.css?v=10',
-  '/css/index.css?v=10',
-  '/js/http.js?v=10',
-  '/js/confetti.js?v=10',
-  '/js/index.js?v=10',
+  '/css/base.css?v=11',
+  '/css/index.css?v=11',
+  '/js/http.js?v=11',
+  '/js/confetti.js?v=11',
+  '/js/index.js?v=11',
 ];
 
 self.addEventListener('install', (e) => {

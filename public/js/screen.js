@@ -5,21 +5,75 @@
   let prevSig = null;
   let pollV = 0;
 
-  // ---------- 金粒子 ----------
-  (function goldDust() {
-    const box = document.createElement('div');
-    box.id = 'gold-dust';
-    for (let i = 0; i < 26; i++) {
-      const s = document.createElement('span');
-      const size = 4 + Math.random() * 10;
-      s.style.width = s.style.height = size + 'px';
-      s.style.left = Math.random() * 100 + '%';
-      s.style.animationDuration = 9 + Math.random() * 14 + 's';
-      s.style.animationDelay = -Math.random() * 20 + 's';
-      s.style.opacity = 0.25 + Math.random() * 0.5;
-      box.appendChild(s);
+  // ---------- 星域背景（星尘闪烁 + 流星，Canvas） ----------
+  const starfield = (() => {
+    const cv = $('starfield');
+    const ctx = cv.getContext('2d');
+    let stars = [], meteors = [], W = 0, H = 0, nextMeteor = 2500;
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    function resize() {
+      W = cv.clientWidth; H = cv.clientHeight;
+      cv.width = W * DPR; cv.height = H * DPR;
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      stars = Array.from({ length: Math.round((W * H) / 14000) }, () => ({
+        x: Math.random() * W, y: Math.random() * H,
+        r: 0.5 + Math.random() * 1.7,
+        base: 0.15 + Math.random() * 0.5,
+        amp: 0.1 + Math.random() * 0.35,
+        spd: 0.4 + Math.random() * 1.6,
+        ph: Math.random() * Math.PI * 2,
+        warm: Math.random() < 0.6, // 金色调为主，少量冷白
+      }));
     }
-    $('stage').appendChild(box);
+    window.addEventListener('resize', () => setTimeout(resize, 200));
+    resize();
+    function spawnMeteor() {
+      // 从上半区斜向划过
+      const x = W * (0.15 + Math.random() * 0.7), y = H * (0.05 + Math.random() * 0.3);
+      const ang = Math.PI * (0.72 + Math.random() * 0.12);
+      const sp = 620 + Math.random() * 420;
+      meteors.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp * 0.42, life: 0, ttl: 0.85 + Math.random() * 0.5 });
+    }
+    function frame(dt, t) {
+      ctx.clearRect(0, 0, W, H);
+      for (const s of stars) {
+        const a = s.base + Math.sin(t / 1000 * s.spd + s.ph) * s.amp;
+        if (a <= 0.02) continue;
+        ctx.globalAlpha = Math.min(1, a);
+        ctx.fillStyle = s.warm ? '#ffd98a' : '#ffffff';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+        if (s.r > 1.5) { // 大星带十字光芒
+          ctx.globalAlpha = Math.min(0.5, a * 0.55);
+          ctx.fillRect(s.x - s.r * 3, s.y - 0.5, s.r * 6, 1);
+          ctx.fillRect(s.x - 0.5, s.y - s.r * 3, 1, s.r * 6);
+        }
+      }
+      // 流星
+      nextMeteor -= dt * 1000;
+      if (nextMeteor <= 0) { spawnMeteor(); nextMeteor = 3800 + Math.random() * 5200; }
+      meteors = meteors.filter((m) => m.life < m.ttl);
+      for (const m of meteors) {
+        m.life += dt; m.x += m.vx * dt; m.y += m.vy * dt;
+        const k = 1 - m.life / m.ttl;
+        const len = 130 * k + 40;
+        const nx = m.vx / Math.hypot(m.vx, m.vy), ny = m.vy / Math.hypot(m.vx, m.vy);
+        const grad = ctx.createLinearGradient(m.x, m.y, m.x - nx * len, m.y - ny * len);
+        grad.addColorStop(0, `rgba(255,240,190,${0.85 * k})`);
+        grad.addColorStop(0.3, `rgba(255,200,90,${0.5 * k})`);
+        grad.addColorStop(1, 'rgba(255,200,90,0)');
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(m.x, m.y);
+        ctx.lineTo(m.x - nx * len, m.y - ny * len);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    return { frame };
   })();
 
   // ---------- 音效（WebAudio 合成，无音频文件） ----------
@@ -50,6 +104,17 @@
       this.tone(660 + (i % 5) * 110, 0, 0.5, 'sine', 0.28);
       this.tone(1320 + (i % 5) * 110, 0.03, 0.3, 'sine', 0.12);
       this.thump();
+    },
+    /** 寻人扫描的哒哒声 */
+    tick() {
+      const ctx = this.ensure();
+      if (!ctx) return;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'square'; o.frequency.value = 2200;
+      g.gain.setValueAtTime(0.06, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.045);
+      o.connect(g).connect(ctx.destination);
+      o.start(); o.stop(ctx.currentTime + 0.06);
     },
     /** 低音鼓：正弦快速下滑，增强揭晓冲击感 */
     thump() {
@@ -244,7 +309,7 @@
     else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); primaryAction(); }
   });
 
-  // ---------- 3D 头像星球（斐波那契球面 + 透视投影；支持双星球对转） ----------
+  // ---------- 3D 头像星球（斐波那契球面 + 透视投影；支持双星球对转与聚光寻人） ----------
   function buildSphere(el, cfg) {
     return {
       el, cfg, pts: [], sig: '',
@@ -253,6 +318,7 @@
       target: cfg.speed0,
       R: 240,
       F: 900, // 透视焦距
+      hunt: null, // { mode:'sweep'|'lock', spotAngle, spotSpeed, lockedId }
       update(sample) {
         const sig = sample.map((u) => u.id).join(',');
         if (sig === this.sig) return;
@@ -281,7 +347,7 @@
           img.alt = '';
           img.onerror = () => { img.onerror = null; img.src = defaultAvatar(); };
           this.el.appendChild(img);
-          this.pts.push({ el: img, x: Math.cos(theta) * rad, y, z: Math.sin(theta) * rad });
+          this.pts.push({ el: img, id: list[i].id, x: Math.cos(theta) * rad, y, z: Math.sin(theta) * rad });
         }
         this.resize();
       },
@@ -298,17 +364,38 @@
         const tilt = cfg.tilt + (rolling ? Math.sin(t / 360 + cfg.phase) * 0.09 : Math.sin(t / 2400 + cfg.phase) * 0.02);
         const cy = Math.cos(this.rotY), sy = Math.sin(this.rotY);
         const cx = Math.cos(tilt), sx = Math.sin(tilt);
+        const hunting = !!this.hunt;
+        if (hunting) {
+          // 聚光扫过：角度随时间加速推进
+          this.hunt.spotAngle += this.hunt.spotSpeed * dt;
+          this.hunt.spotSpeed = Math.min(7.5, this.hunt.spotSpeed + dt * 3.4);
+        }
         for (const p of this.pts) {
           const x1 = p.x * cy + p.z * sy;      // 绕 Y 轴自转
           const z1 = -p.x * sy + p.z * cy;
           const y2 = p.y * cx - z1 * sx;       // 绕 X 轴倾斜
           const z2 = p.y * sx + z1 * cx;
-          const s = this.F / (this.F - z2 * this.R); // 前大后小
+          let s = this.F / (this.F - z2 * this.R); // 前大后小
+          let depth = 0.28 + 0.72 * (z2 + 1) / 2;  // 前亮后暗
+          let lit = false;
+          if (hunting) {
+            depth *= 0.16; // 寻人时全场熄灭
+            if (this.hunt.mode === 'lock' && p.id === this.hunt.lockedId) {
+              lit = true;
+              depth = 1; s *= 1.75;
+            } else if (this.hunt.mode === 'sweep') {
+              // 当前屏幕水平角（与 spotAngle 同空间）
+              const a = Math.atan2(x1, z1);
+              let d = a - this.hunt.spotAngle;
+              d = Math.atan2(Math.sin(d), Math.cos(d)); // 归一化到 [-π, π]
+              if (Math.abs(d) < 0.5 && z2 > -0.12) { lit = true; depth = Math.max(depth, 0.95); s *= 1.16; }
+            }
+          }
           p.el.style.transform =
             `translate(-50%,-50%) translate3d(${(x1 * this.R * s).toFixed(1)}px, ${(y2 * this.R * s).toFixed(1)}px, 0) scale(${s.toFixed(3)})`;
-          const depth = 0.28 + 0.72 * (z2 + 1) / 2; // 前亮后暗
           p.el.style.opacity = (depth * cfg.dim).toFixed(2);
-          p.el.style.zIndex = Math.round((z2 + 1) * 100);
+          p.el.style.zIndex = Math.round((z2 + 1) * 100) + (lit ? 200 : 0);
+          p.el.classList.toggle('lit', lit);
         }
       },
     };
@@ -336,6 +423,7 @@
   (function loop(t) {
     const dt = Math.min(0.05, (t - lastT) / 1000);
     lastT = t;
+    starfield.frame(dt, t);
     sphere.frame(dt, t);
     sphere2.frame(dt, t);
     requestAnimationFrame(loop);
@@ -363,7 +451,7 @@
     for (const id of ['c-qr', 'c-prize', 'c-roll', 'c-reveal']) $(id).classList.toggle('hidden', id !== box);
   }
 
-  /** 揭晓瞬间：全屏闪光 + 震屏 */
+  /** 揭晓瞬间：全屏闪光 + 震屏 + 镜头急推 */
   function flashAndShake() {
     const flash = $('flash-layer');
     flash.classList.remove('on');
@@ -374,6 +462,11 @@
     void stage.offsetWidth;
     stage.classList.add('shake');
     setTimeout(() => stage.classList.remove('shake'), 550);
+    const cam = $('main-stage');
+    cam.classList.remove('punch');
+    void cam.offsetWidth;
+    cam.classList.add('punch');
+    setTimeout(() => cam.classList.remove('punch'), 750);
   }
 
   // ---------- 3·2·1 倒计时（滚动开场编排，主持人揭晓可随时打断） ----------
@@ -406,6 +499,12 @@
     const round = s.rounds.find((r) => r.id === s.current_round_id) || null;
     const allWinners = s.winners_by_round[s.current_round_id] || [];
     const valid = allWinners.filter((w) => w.status === 'valid');
+
+    // 阶段切换时终止一切寻人状态（防止星球停留在熄灭/点亮态）
+    if (sphere.hunt) {
+      sphere.hunt = null;
+      sphere.pts.forEach((p) => p.el.classList.remove('lit'));
+    }
 
     $('main-stage').dataset.phase = phase;
 
@@ -467,6 +566,25 @@
     http.get('/api/screen/qr').then(({ data }) => { if (data && data.dataUrl) img.src = data.dataUrl; }).catch(() => {});
   }
 
+  /** 聚光寻人：星球熄灭 → 聚光加速扫过 → 锁定中奖者头像 → 飞出中央卡片 */
+  function huntThenReveal(w, i, done) {
+    const inSphere = sphere.pts.some((p) => p.id === w.user_id);
+    sphere.hunt = { mode: 'sweep', spotAngle: Math.random() * Math.PI * 2, spotSpeed: 1.6, lockedId: null };
+    const huntMs = i === 0 ? 1700 : 1150;
+    const tickTimer = setInterval(() => AudioFX.tick(), 130);
+    setTimeout(() => {
+      clearInterval(tickTimer);
+      if (!sphere.hunt) return done(); // 阶段被切走
+      sphere.hunt = { mode: 'lock', spotAngle: 0, spotSpeed: 0, lockedId: w.user_id };
+      AudioFX.tone(1046, 0, 0.35, 'sine', 0.24);
+      setTimeout(() => {
+        sphere.hunt = null;
+        sphere.pts.forEach((p) => p.el.classList.remove('lit'));
+        done();
+      }, inSphere ? 620 : 200);
+    }, huntMs);
+  }
+
   function playReveal(round, valid, all, s) {
     show('c-reveal');
     const center = $('c-reveal');
@@ -476,28 +594,35 @@
       showBoard(round, all, s);
       return;
     }
+    let t = 300;
     valid.forEach((w, i) => {
       setTimeout(() => {
-        center.innerHTML = '';
-        const d = document.createElement('div');
-        d.className = 'reveal-hero';
-        d.style.position = 'relative';
-        d.innerHTML = `<div class="crown">👑</div><img src="${w.avatar || defaultAvatar()}" onerror="this.src='${defaultAvatar()}'" class="avatar" alt="">
-          <div class="rh-name">${escapeHtml(w.nickname || '幸运儿')}</div>
-          <div class="rh-prize">🎉 ${escapeHtml(round.prize_name)}</div>`;
-        center.appendChild(d);
-        const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
-        flashAndShake();
-        confetti.burst(cx, cy, { count: 110, speed: 13, lift: 7 });
-        confetti.burst(cx, cy, { count: 40, speed: 6, lift: 3 }); // 第二层慢速金屑
-        AudioFX.ding(i);
-      }, i * 780);
+        if ($('main-stage').dataset.phase !== 'reveal') return; // 阶段已切走，放弃后续动画
+        huntThenReveal(w, i, () => {
+          if ($('main-stage').dataset.phase !== 'reveal') return;
+          center.innerHTML = '';
+          const d = document.createElement('div');
+          d.className = 'reveal-hero';
+          d.style.position = 'relative';
+          d.innerHTML = `<div class="crown">👑</div><img src="${w.avatar || defaultAvatar()}" onerror="this.src='${defaultAvatar()}'" class="avatar" alt="">
+            <div class="rh-name">${escapeHtml(w.nickname || '幸运儿')}</div>
+            <div class="rh-prize">🎉 ${escapeHtml(round.prize_name)}</div>`;
+          center.appendChild(d);
+          const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+          flashAndShake();
+          confetti.burst(cx, cy, { count: 110, speed: 13, lift: 7 });
+          confetti.burst(cx, cy, { count: 40, speed: 6, lift: 3 });
+          AudioFX.ding(i);
+        });
+      }, t);
+      t += (i === 0 ? 1700 : 1150) + 620 + 720; // 寻人 + 锁定 + 卡片展示
     });
     setTimeout(() => {
+      if ($('main-stage').dataset.phase !== 'reveal') return;
       showBoard(round, all, s);
       confetti.celebrate(3);
       AudioFX.fanfare();
-    }, valid.length * 780 + 500);
+    }, t + 200);
   }
 
   function showBoard(round, all, s) {

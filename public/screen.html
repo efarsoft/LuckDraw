@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2720%27 fill=%27%23a31212%27/%3E%3Ctext x=%2750%27 y=%2768%27 text-anchor=%27middle%27 font-size=%2756%27 fill=%27%23ffd700%27 font-family=%27serif%27 font-weight=%27bold%27%3E%E5%A5%96%3C/text%3E%3C/svg%3E">
 <title>幸运抽奖 · 大屏</title>
-<link rel="stylesheet" href="/css/base.css?v=10">
-<link rel="stylesheet" href="/css/screen.css?v=10">
+<link rel="stylesheet" href="/css/base.css?v=11">
+<link rel="stylesheet" href="/css/screen.css?v=11">
 </head>
 <body>
 <div id="stage">
@@ -47,6 +47,9 @@
 
   <!-- 主舞台 -->
   <main id="main-stage" data-phase="idle">
+    <!-- 星域背景（星尘闪烁 + 流星） -->
+    <canvas id="starfield"></canvas>
+
     <!-- 3D 头像星球（签到墙风格：球面分布 + 景深旋转，双星球对转） -->
     <div id="sphere-stage">
       <div id="sphere-halo"></div>
@@ -128,8 +131,8 @@
   </div>
 </div>
 
-<script src="/js/http.js?v=10"></script>
-<script src="/js/confetti.js?v=10"></script>
-<script src="/js/screen.js?v=10"></script>
+<script src="/js/http.js?v=11"></script>
+<script src="/js/confetti.js?v=11"></script>
+<script src="/js/screen.js?v=11"></script>
 </body>
 </html>
