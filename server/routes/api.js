@@ -82,7 +82,7 @@ router.get('/api/me/state', pollLimit, requireUser, async (req, res) => {
   res.json(buildMeState(req.user.id));
 });
 
-/** 资料填写（签到第二页）：姓名 + 手机号必填，部门选填 */
+/** 资料填写（签到第二页）：姓名 + 手机号必填，企业/单位名称选填 */
 router.post('/api/me/profile', pollLimit, requireUser, (req, res, next) => {
   try {
     const u = usersSvc.setProfile(req.user.id, req.body || {});

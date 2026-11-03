@@ -228,7 +228,7 @@ router.get('/api/admin/qrcode', requireAdmin, async (req, res) => {
 
 router.get('/api/admin/export', requireAdmin, (req, res) => {
   const rounds = new Map(draw.listRounds().map((r) => [r.id, r]));
-  const rows = [['轮次', '奖品', '姓名', '手机号', '部门', '备注', '凭证码', '状态', '中奖时间']];
+  const rows = [['轮次', '奖品', '姓名', '手机号', '企业/单位', '备注', '凭证码', '状态', '中奖时间']];
   for (const w of winnerRows()) {
     const r = rounds.get(w.round_id) || {};
     const u = usersSvc.getUser(w.user_id) || {};

@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
   note         TEXT,                              -- 名单导入时的手机尾号/备注
   real_name    TEXT,                              -- 扫码填写的真实姓名
   phone        TEXT,                              -- 扫码填写的手机号
-  dept         TEXT,                              -- 部门（选填）
+  dept         TEXT,                              -- 企业/单位名称（选填）
   blocked      INTEGER NOT NULL DEFAULT 0,
   joined_at    INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL

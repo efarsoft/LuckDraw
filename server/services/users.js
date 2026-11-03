@@ -27,11 +27,11 @@ async function signInUser({ openid, nickname, avatarUrl = null, source = 'wechat
   return db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
 }
 
-/** 扫码资料填写：姓名+手机号必填，部门选填；完成后视为完成签到 */
+/** 扫码资料填写：姓名+手机号必填，企业/单位名称选填；完成后视为完成签到 */
 function setProfile(userId, { real_name, phone, dept }) {
   const name = String(real_name || '').trim().slice(0, 20);
   const mobile = String(phone || '').trim();
-  const department = String(dept || '').trim().slice(0, 30) || null;
+  const department = String(dept || '').trim().slice(0, 40) || null;
   if (!name) throw Object.assign(new Error('请填写姓名'), { status: 400 });
   if (!/^1[3-9]\d{9}$/.test(mobile)) throw Object.assign(new Error('手机号格式不正确'), { status: 400 });
   const r = db
