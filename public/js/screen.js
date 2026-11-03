@@ -594,6 +594,30 @@
       showBoard(round, all, s);
       return;
     }
+
+    // 大名额（>5 人）：集体揭晓——单次扫场 + 大字 + 名单板瀑布点亮，避免逐人寻人拖沓
+    if (valid.length > 5) {
+      sphere.hunt = { mode: 'sweep', spotAngle: Math.random() * Math.PI * 2, spotSpeed: 2.2, lockedId: null };
+      const tickTimer = setInterval(() => AudioFX.tick(), 120);
+      setTimeout(() => {
+        clearInterval(tickTimer);
+        if ($('main-stage').dataset.phase !== 'reveal') return;
+        sphere.hunt = null;
+        sphere.pts.forEach((p) => p.el.classList.remove('lit'));
+        center.innerHTML = `
+          <div class="reveal-hero group-hero">
+            <div class="crown">👑</div>
+            <div class="rh-name">本轮 ${valid.length} 位幸运儿</div>
+            <div class="rh-prize">🎉 ${escapeHtml(round.prize_name)}</div>
+          </div>`;
+        flashAndShake();
+        confetti.celebrate(3);
+        AudioFX.fanfare();
+        showBoard(round, all, s, { stagger: true });
+      }, 2400);
+      return;
+    }
+
     let t = 300;
     valid.forEach((w, i) => {
       setTimeout(() => {
@@ -625,13 +649,19 @@
     }, t + 200);
   }
 
-  function showBoard(round, all, s) {
+  function showBoard(round, all, s, { stagger = false } = {}) {
     $('rb-title').textContent = `🎉 ${round.name} · ${round.prize_name}`;
     const grid = $('rb-grid');
     grid.innerHTML = '';
+    let idx = 0;
     for (const w of all) {
       const c = document.createElement('div');
       c.className = 'rb-cell' + (w.status === 'voided' ? ' voided' : '');
+      if (stagger) {
+        c.style.animation = `cell-in 0.4s cubic-bezier(0.2, 1.5, 0.4, 1) both`;
+        c.style.animationDelay = `${Math.min(idx * 70, 3500)}ms`;
+        idx++;
+      }
       c.innerHTML = `<img src="${w.avatar || defaultAvatar()}" onerror="this.src='${defaultAvatar()}'" alt=""><span class="n">${escapeHtml(w.nickname || '幸运儿')}</span>`;
       grid.appendChild(c);
     }

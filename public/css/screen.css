@@ -224,11 +224,16 @@ main {
 }
 @keyframes board-in { from { opacity: 0; transform: translate(-50%, 30px); } }
 .rb-title { text-align: center; color: var(--gold-2); font-weight: 900; font-size: clamp(14px, 2.4vmin, 30px); letter-spacing: 0.2em; margin-bottom: 1.2vmin; }
-.rb-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.6vmin; max-height: 24vh; overflow: auto; }
+.rb-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.6vmin; max-height: 30vh; overflow: auto; }
 .rb-cell { display: flex; align-items: center; gap: 1vmin; padding: 0.7vmin 1.4vmin; border-radius: 999px; background: rgba(255, 215, 0, 0.1); border: 1px solid rgba(255, 215, 0, 0.4); }
 .rb-cell img { width: clamp(24px, 3.6vmin, 52px); height: clamp(24px, 3.6vmin, 52px); border-radius: 50%; object-fit: cover; }
 .rb-cell .n { font-size: clamp(12px, 2vmin, 26px); font-weight: 700; color: var(--gold-1); max-width: 16vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rb-cell.voided { opacity: 0.4; text-decoration: line-through; }
+@keyframes cell-in {
+  0% { transform: scale(0.3) translateY(18px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.group-hero .rh-name { font-size: clamp(24px, 6vmin, 86px); }
 
 /* ---- 底部信息带 ---- */
 footer {
