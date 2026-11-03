@@ -169,46 +169,57 @@
 
   // ================= 开奖控制（主持人在大屏直接开奖，复用管理端 API） =================
   const CTL = {
-    key: localStorage.getItem('ld_admin_key') || '',
+    authed: false,
     busy: false,
     async call(method, path, body) {
       const resp = await fetch(path, {
         method,
+        credentials: 'same-origin',
         cache: 'no-store',
-        headers: { 'x-admin-key': CTL.key, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+        headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
         body: body !== undefined ? JSON.stringify(body) : undefined,
       });
       if (resp.status === 401) {
-        CTL.key = '';
-        localStorage.removeItem('ld_admin_key');
+        CTL.authed = false;
         updateLock();
         openKeyModal();
-        throw new Error('管理密钥无效');
+        throw new Error('请先登录管理员账号');
       }
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
       updateLock();
       return data;
     },
-    ensureKey() {
-      if (!CTL.key) { openKeyModal(); return false; }
-      return true;
+    async ensureKey() {
+      if (CTL.authed) return true;
+      // 已有会话则直接复用
+      const me = await fetch('/api/admin/me', { credentials: 'same-origin', cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (me) { CTL.authed = true; updateLock(); return true; }
+      openKeyModal();
+      return false;
     },
   };
-  function updateLock() { $('ck-lock').textContent = CTL.key ? '🔐' : '🔓'; }
+  function updateLock() { $('ck-lock').textContent = CTL.authed ? '🔐' : '🔓'; }
   function openKeyModal() {
     $('key-modal').classList.remove('hidden');
-    $('ck-key').value = CTL.key;
-    $('ck-key').focus();
+    if (!$('ck-user').value) $('ck-user').focus(); else $('ck-key').focus();
   }
   async function submitKey() {
-    const k = $('ck-key').value.trim();
-    if (!k) return;
+    const username = $('ck-user').value.trim();
+    const password = $('ck-key').value;
+    if (!username || !password) return showToast('请输入账号和密码');
     try {
-      const resp = await fetch('/api/admin/overview', { headers: { 'x-admin-key': k }, cache: 'no-store' });
-      if (!resp.ok) return showToast('密钥错误');
-      CTL.key = k;
-      localStorage.setItem('ld_admin_key', k);
+      const resp = await fetch('/api/admin/login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) return showToast(data.error || '账号或密码错误');
+      CTL.authed = true;
+      $('ck-key').value = '';
       $('key-modal').classList.add('hidden');
       updateLock();
       showToast('🔓 开奖授权成功');
@@ -216,9 +227,11 @@
   }
   $('ck-key-ok').onclick = submitKey;
   $('ck-key').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitKey(); });
+  $('ck-user').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('ck-key').focus(); });
   $('key-modal').addEventListener('click', (e) => { if (e.target === $('key-modal')) $('key-modal').classList.add('hidden'); });
   $('ck-lock').onclick = openKeyModal;
-  updateLock();
+  // 启动时探测已有会话（12 小时内登录过则免再登）
+  CTL.ensureKey();
 
   function updateDock(s) {
     const rounds = s.rounds || [];
@@ -254,7 +267,7 @@
 
   async function primaryAction() {
     if (CTL.busy || !cur) return;
-    if (!CTL.ensureKey()) return;
+    if (!(await CTL.ensureKey())) return;
     const rounds = cur.rounds || [];
     const curR = rounds.find((r) => r.id === cur.current_round_id) || null;
     const pendings = rounds.filter((r) => r.status === 'pending');
@@ -280,14 +293,14 @@
   }
   $('ck-primary').onclick = primaryAction;
   $('ck-idle').onclick = async () => {
-    if (!CTL.ensureKey()) return;
+    if (!(await CTL.ensureKey())) return;
     try { await CTL.call('POST', '/api/admin/phase', { phase: 'idle' }); } catch (e) { showToast('⚠ ' + e.message); }
   };
   async function cycleRound(dir) {
     if (!cur || CTL.busy) return;
     const rounds = cur.rounds || [];
     if (!rounds.length) return;
-    if (!CTL.ensureKey()) return;
+    if (!(await CTL.ensureKey())) return;
     const idx = rounds.findIndex((r) => r.id === cur.current_round_id);
     const nextIdx = (((idx < 0 ? 0 : idx + dir) % rounds.length) + rounds.length) % rounds.length;
     const target = rounds[nextIdx];

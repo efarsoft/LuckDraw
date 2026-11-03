@@ -4,3 +4,4 @@ data/
 *.log
 .playwright-mcp/
 .zcode/
+.env.standalone-backup

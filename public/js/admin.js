@@ -1,7 +1,6 @@
-/* ============ 管理台逻辑 ============ */
+/* ============ 管理台逻辑（账号密码会话登录） ============ */
 (function () {
   const $ = (id) => document.getElementById(id);
-  let KEY = localStorage.getItem('ld_admin_key') || '';
   let ov = null;
   let search = '';
 
@@ -10,13 +9,13 @@
       method,
       credentials: 'same-origin',
       cache: 'no-store',
-      headers: { 'x-admin-key': KEY, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+      headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     let data = null;
     try { data = await resp.json(); } catch { /* empty */ }
     if (!resp.ok) {
-      if (resp.status === 401) { showGate(); throw new Error('密钥错误'); }
+      if (resp.status === 401) { showGate(); throw new Error('未登录或会话已过期'); }
       throw new Error((data && data.error) || `HTTP ${resp.status}`);
     }
     return data;
@@ -25,29 +24,52 @@
   function showGate() {
     $('gate').classList.remove('hidden');
     $('app').classList.add('hidden');
-    localStorage.removeItem('ld_admin_key');
   }
   function showApp() {
     $('gate').classList.add('hidden');
     $('app').classList.remove('hidden');
   }
 
-  async function tryEnter() {
-    const k = $('gate-key').value.trim();
-    if (!k) return;
-    KEY = k;
+  async function tryLogin() {
+    const username = $('gate-user').value.trim();
+    const password = $('gate-pass').value;
+    if (!username || !password) { $('gate-err').textContent = '请输入账号和密码'; return; }
+    $('gate-btn').disabled = true;
     try {
-      await call('GET', '/api/admin/overview');
-      localStorage.setItem('ld_admin_key', KEY);
+      const resp = await fetch('/api/admin/login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || '登录失败');
       $('gate-err').textContent = '';
-      showApp();
-      refreshLoop();
+      $('gate-pass').value = '';
+      await boot();
     } catch (e) {
-      $('gate-err').textContent = e.message || '进入失败';
+      $('gate-err').textContent = e.message || '登录失败';
+    } finally {
+      $('gate-btn').disabled = false;
     }
   }
-  $('gate-btn').onclick = tryEnter;
-  $('gate-key').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryEnter(); });
+  $('gate-btn').onclick = tryLogin;
+  ['gate-user', 'gate-pass'].forEach((id) =>
+    $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') tryLogin(); })
+  );
+
+  $('btn-logout').onclick = async () => {
+    await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+    showGate();
+  };
+  $('btn-pass').onclick = async () => {
+    const p = prompt('设置新密码（至少 6 位）：');
+    if (!p) return;
+    try {
+      await call('POST', '/api/admin/password', { newPassword: p });
+      showToast('✅ 密码已修改，下次登录生效');
+    } catch (e) { showToast('❌ ' + e.message); }
+  };
 
   // ---------- 渲染 ----------
   function esc(s) {
@@ -191,7 +213,10 @@
       polling = false;
     }
   }
+  let loopStarted = false;
   function refreshLoop() {
+    if (loopStarted) return; // 防止重复登录后叠加定时器
+    loopStarted = true;
     refreshOnce();
     setInterval(refreshOnce, 2000);
     setInterval(loadUsers, 15000);
@@ -366,7 +391,7 @@
     try {
       const resp = await fetch('/api/admin/sync-now', {
         method: 'POST',
-        headers: { 'x-admin-key': KEY },
+        credentials: 'same-origin',
         cache: 'no-store',
       });
       const data = await resp.json();
@@ -388,14 +413,14 @@
 
   $('btn-export').onclick = () => {
     const a = document.createElement('a');
-    a.href = `/api/admin/export?key=${encodeURIComponent(KEY)}`;
+    a.href = '/api/admin/export';
     a.download = 'winners.csv';
     a.click();
   };
 
   $('btn-export-users').onclick = () => {
     const a = document.createElement('a');
-    a.href = `/api/admin/export/users?key=${encodeURIComponent(KEY)}`;
+    a.href = '/api/admin/export/users';
     a.download = 'users.csv';
     a.click();
   };
@@ -437,14 +462,19 @@
   };
 
   // ---------- 启动 ----------
-  (async function init() {
-    if (!KEY) return showGate();
+  async function boot() {
     try {
+      const me = await fetch('/api/admin/me', { credentials: 'same-origin', cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      if (!me) return showGate();
+      $('admin-username').textContent = '👤 ' + me.username;
       await call('GET', '/api/admin/overview');
       showApp();
       refreshLoop();
     } catch {
       showGate();
     }
-  })();
+  }
+  boot();
 })();

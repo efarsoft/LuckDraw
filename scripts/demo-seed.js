@@ -2,14 +2,40 @@
 /**
  * 演示数据种子：批量生成模拟用户 + 三个示例轮次（不开奖，留给现场流程体验）
  * 用法：node scripts/demo-seed.js [用户数，默认60] [服务地址，默认 http://localhost:3000]
- * 注意：仅在 USE_MOCK=1（演示模式）下免密钥可用；生产模式需带 ADMIN_KEY 环境变量。
+ * 登录：读 .env 的 ADMIN_USER/ADMIN_PASSWORD（默认 admin/admin888）换取会话 Cookie。
  */
+const fs = require('fs');
+const path = require('path');
 const [,, nArg = '60', baseArg = process.env.BASE_URL || 'http://localhost:3000'] = process.argv;
 const N = Math.min(Math.max(parseInt(nArg, 10) || 60, 1), 500);
 const BASE = baseArg.replace(/\/+$/, '');
-const KEY = process.env.ADMIN_KEY || 'change-me-admin-key';
+
+function readEnv() {
+  const p = path.join(__dirname, '..', '.env');
+  if (!fs.existsSync(p)) return {};
+  const out = {};
+  for (const line of fs.readFileSync(p, 'utf8').split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (m) out[m[1]] = m[2];
+  }
+  return out;
+}
 
 async function main() {
+  const env = readEnv();
+  const login = await fetch(`${BASE}/api/admin/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      username: process.env.ADMIN_USER || env.ADMIN_USER || 'admin',
+      password: process.env.ADMIN_PASSWORD || env.ADMIN_PASSWORD || 'admin888',
+    }),
+  });
+  if (!login.ok) { console.error('✗ 管理员登录失败：', await login.text()); process.exit(1); }
+  const cookie = (login.headers.get('set-cookie') || '').split(';')[0];
+  const auth = { cookie, 'content-type': 'application/json' };
+  console.log('✓ 管理员登录成功');
+
   const seed = await fetch(`${BASE}/dev/seed?n=${N}`).then((r) => r.json());
   console.log(`✓ 模拟用户：已生成 ${seed.seeded} 人（总计 ${seed.total}）`);
 
@@ -21,7 +47,7 @@ async function main() {
   for (const r of rounds) {
     const resp = await fetch(`${BASE}/api/admin/rounds`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-admin-key': KEY },
+      headers: auth,
       body: JSON.stringify(r),
     }).then((x) => x.json());
     if (resp.error) { console.error(`✗ 轮次创建失败: ${resp.error}`); process.exit(1); }

@@ -120,13 +120,14 @@
   <!-- 3·2·1 倒计时层 -->
   <div id="countdown" class="hidden"></div>
 
-  <!-- 管理密钥弹层 -->
+  <!-- 开奖授权弹层（账号密码） -->
   <div id="key-modal" class="dock-key-modal hidden">
     <div class="card key-card">
       <h3>🔑 开奖授权</h3>
-      <p>输入管理密钥（.env 中 ADMIN_KEY）</p>
-      <input id="ck-key" type="password" placeholder="管理密钥" autocomplete="off">
-      <button id="ck-key-ok" class="btn">确认</button>
+      <p>使用管理员账号登录后即可在大屏开奖</p>
+      <input id="ck-user" placeholder="账号" autocomplete="username">
+      <input id="ck-key" type="password" placeholder="密码" autocomplete="current-password">
+      <button id="ck-key-ok" class="btn">登 录</button>
     </div>
   </div>
 </div>

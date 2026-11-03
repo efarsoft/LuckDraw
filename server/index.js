@@ -54,22 +54,28 @@ if (config.ROLE === 'local') {
   app.get(['/', '/index.html'], (req, res) => res.redirect(config.CLOUD_PUBLIC_URL || '/screen.html'));
 }
 
-// ---- 开发/演示工具：批量假用户（Mock 模式或带管理密钥） ----
+// ---- 开发/演示工具：批量假用户（Mock 模式或管理员会话） ----
+// 注意：local 节点用负数 id 造演示用户，避免与云端拉回的真实用户 id 冲突
 const seedLimit = createRateLimiter(10, 60_000);
 app.get('/dev/seed', seedLimit, async (req, res, next) => {
   if (!config.USE_MOCK) {
-    const key = req.headers['x-admin-key'] || req.query.key || '';
-    if (!config.ADMIN_KEY || key !== config.ADMIN_KEY) return res.status(401).json({ error: '需要管理密钥' });
+    const admin = require('./lib/adminauth').sessionUser(req);
+    if (!admin) return res.status(401).json({ error: '需要管理员登录' });
   }
   try {
     const n = Math.min(Math.max(parseInt(req.query.n || '20', 10) || 20, 1), 500);
     for (let i = 0; i < n; i++) {
-      await usersSvc.signInUser({
-        openid: `seed_${Date.now().toString(36)}_${i}_${Math.random().toString(36).slice(2, 8)}`,
-        nickname: wechat.randomMockName(),
-        avatarUrl: null,
-        source: 'seed',
-      });
+      const name = wechat.randomMockName();
+      if (config.ROLE === 'local') {
+        usersSvc.addManualUser(name, '演示'); // 负数 id，不与云端冲突
+      } else {
+        await usersSvc.signInUser({
+          openid: `seed_${Date.now().toString(36)}_${i}_${Math.random().toString(36).slice(2, 8)}`,
+          nickname: name,
+          avatarUrl: null,
+          source: 'seed',
+        });
+      }
     }
     res.json({ ok: true, seeded: n, total: usersSvc.countUsers() });
   } catch (e) {

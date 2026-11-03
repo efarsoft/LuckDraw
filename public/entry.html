@@ -3,81 +3,138 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#6b0606">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2720%27 fill=%27%23a31212%27/%3E%3Ctext x=%2750%27 y=%2768%27 text-anchor=%27middle%27 font-size=%2756%27 fill=%27%23ffd700%27 font-family=%27serif%27 font-weight=%27bold%27%3E%E5%A5%96%3C/text%3E%3C/svg%3E">
-<title>入场签到 · 幸运抽奖</title>
-<link rel="stylesheet" href="/css/base.css?v=19">
-<link rel="stylesheet" href="/css/index.css?v=19">
+<meta name="theme-color" content="#101b3d">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2720%27 fill=%27%23101b3d%27/%3E%3Ctext x=%2750%27 y=%2768%27 text-anchor=%27middle%27 font-size=%2748%27 fill=%27%23ffd700%27 font-family=%27serif%27 font-weight=%27bold%27%3E%E5%85%A5%3C/text%3E%3C/svg%3E">
+<title>入场签到</title>
+<link rel="stylesheet" href="/css/base.css?v=20">
 <style>
-.page { max-width: 560px; margin: 0 auto; min-height: 100vh; padding: 30px 20px 44px; }
-.pf-card { margin-top: 10px; padding: 26px 22px; }
-.pf-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
-.pf-head img { width: 56px; height: 56px; }
-.pf-wx { font-size: 14px; color: var(--ink-dim); }
-.pf-title { font-size: 21px; font-weight: 900; color: var(--gold-1); }
-.pf-tip { font-size: 12.5px; color: var(--ink-dim); margin: 6px 0 18px; line-height: 1.7; }
-.pf-field { margin-bottom: 14px; }
-.pf-field label { display: block; font-size: 13px; color: var(--ink-dim); margin-bottom: 7px; }
-.pf-field label b { color: #ff9b9b; margin-left: 2px; }
-.pf-field input {
-  width: 100%; box-sizing: border-box; padding: 13px 14px;
-  border-radius: 10px; border: 1px solid rgba(255, 215, 0, 0.35);
-  background: rgba(0, 0, 0, 0.25); color: #fff; font-size: 16px; outline: none;
+/* ===== 入场签到：藏蓝"入场券"风（与抽奖页明确区分） ===== */
+body {
+  background: linear-gradient(168deg, #0a1230 0%, #14204d 55%, #1b2a66 100%) fixed;
+  color: #eef2ff;
+  font-family: var(--font-cn);
 }
-.pf-field input:focus { border-color: rgba(255, 215, 0, 0.75); }
-.pf-submit { width: 100%; margin-top: 8px; padding: 14px; font-size: 17px; border-radius: 11px; }
-.pf-err { color: #ff9b9b; font-size: 13px; min-height: 18px; margin-top: 10px; text-align: center; }
-.pf-done { text-align: center; padding: 26px 0 10px; }
-.pf-done .big { font-size: 54px; animation: win-pop .6s cubic-bezier(.2,1.6,.4,1); }
-.pf-done h2 { font-size: 22px; color: var(--gold-1); margin: 12px 0 6px; }
-.pf-done p { font-size: 13px; color: var(--ink-dim); line-height: 1.9; }
-.pf-done .next { margin-top: 14px; padding: 12px; border-radius: 12px; border: 1px dashed rgba(255,215,0,.45); background: rgba(0,0,0,.2); font-size: 13px; color: var(--gold-1); }
+body::before { opacity: .5; }
+.page { position: relative; z-index: 1; max-width: 560px; margin: 0 auto; min-height: 100vh; padding: 34px 20px 44px; }
+
+header { text-align: center; padding: 14px 0 4px; }
+header h1 { font-size: 26px; font-weight: 900; color: #ffd76a; letter-spacing: .18em; text-shadow: 0 2px 12px rgba(0,0,0,.4); }
+header p { margin-top: 8px; color: rgba(238,242,255,.55); font-size: 12px; letter-spacing: .35em; }
+
+/* 入场券卡片 */
+.ticket {
+  position: relative;
+  margin-top: 22px;
+  background: linear-gradient(160deg, #16224f, #0d1636);
+  border: 1px solid rgba(255, 215, 106, .4);
+  border-radius: 18px;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, .5);
+  overflow: hidden;
+}
+.ticket::before, .ticket::after { /* 券两侧缺口 */
+  content: ""; position: absolute; width: 22px; height: 22px; border-radius: 50%;
+  background: #0a1230; border: 1px solid rgba(255,215,106,.4);
+}
+.ticket::before { left: -12px; top: calc(88px - 11px); }
+.ticket::after { right: -12px; top: calc(88px - 11px); }
+.tk-head {
+  padding: 20px 22px 14px;
+  display: flex; align-items: center; gap: 14px;
+  border-bottom: 2px dashed rgba(255, 215, 106, .45);
+}
+.tk-badge {
+  width: 46px; height: 46px; border-radius: 12px; flex: none;
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
+  background: rgba(255, 215, 106, .14); border: 1px solid rgba(255, 215, 106, .5);
+}
+.tk-title { font-size: 20px; font-weight: 900; color: #ffd76a; letter-spacing: .1em; }
+.tk-sub { font-size: 12px; color: rgba(238,242,255,.6); margin-top: 3px; }
+.tk-body { padding: 18px 22px 22px; }
+.tk-tip { font-size: 12.5px; color: rgba(238,242,255,.72); line-height: 1.8; margin-bottom: 16px; }
+.tk-tip b { color: #ffd76a; }
+
+.f { margin-bottom: 14px; }
+.f label { display: block; font-size: 13px; color: rgba(238,242,255,.65); margin-bottom: 7px; letter-spacing: .08em; }
+.f label b { color: #ff9b9b; margin-left: 2px; }
+.f input {
+  width: 100%; box-sizing: border-box; padding: 13px 14px;
+  border-radius: 10px; border: 1px solid rgba(255, 215, 106, .3);
+  background: rgba(0, 0, 0, 0.3); color: #fff; font-size: 16px; outline: none;
+}
+.f input:focus { border-color: rgba(255, 215, 106, .8); }
+.btn-submit {
+  width: 100%; margin-top: 6px; padding: 14px; border: none; border-radius: 11px;
+  font-family: var(--font-cn); font-size: 16px; font-weight: 800; letter-spacing: .2em;
+  cursor: pointer;
+  background: linear-gradient(135deg, #ffd76a, #f5a623); color: #14204d;
+  box-shadow: 0 6px 18px rgba(245, 166, 35, .35);
+}
+.btn-submit:disabled { opacity: .5; }
+.err { color: #ff9b9b; font-size: 13px; min-height: 18px; margin-top: 10px; text-align: center; }
+
+/* 完成态：整券变入场凭证 */
+.tk-done { text-align: center; padding: 30px 22px 28px; }
+.tk-done .big { font-size: 50px; }
+.tk-done h2 { font-size: 21px; color: #ffd76a; margin: 12px 0 4px; letter-spacing: .15em; }
+.tk-done .who { font-size: 15px; color: rgba(238,242,255,.85); }
+.tk-next {
+  margin-top: 18px; padding: 13px 14px; border-radius: 12px;
+  border: 1px dashed rgba(255, 215, 106, .5); background: rgba(0,0,0,.22);
+  font-size: 12.5px; color: rgba(238,242,255,.85); line-height: 1.9;
+}
+.tk-next b { color: #ffd76a; }
+.foot { text-align: center; margin-top: 34px; color: rgba(238,242,255,.35); font-size: 12px; letter-spacing: .2em; }
+.avatar { border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,215,106,.6); background: #14204d; }
 </style>
 </head>
 <body>
 <div class="page">
   <header>
-    <h1 id="act-title" class="gold-text">年度盛典 · 幸运抽奖</h1>
-    <p id="act-subtitle"></p>
+    <h1>入场签到</h1>
+    <p>EVENT CHECK-IN</p>
   </header>
 
-  <section id="pf-form" class="card pf-card">
-    <div class="pf-head">
-      <img id="pf-avatar" class="avatar" width="56" height="56" alt="">
+  <section class="ticket">
+    <div class="tk-head" id="tk-head">
+      <div class="tk-badge">🎫</div>
       <div>
-        <div class="pf-title">🚪 入场签到</div>
-        <div class="pf-wx" id="pf-wx-name"></div>
+        <div class="tk-title">入场登记</div>
+        <div class="tk-sub" id="tk-wx"></div>
       </div>
+      <img id="tk-avatar" class="avatar" width="44" height="44" alt="" style="margin-left:auto">
     </div>
-    <div class="pf-tip">请完善信息完成入场登记（信息仅用于本次活动）<br>入场后<b style="color:var(--gold-1)">不会自动参与抽奖</b>，抽奖环节请再扫大屏上的二维码</div>
-    <div class="pf-field">
-      <label>姓名<b>*</b></label>
-      <input id="pf-name" maxlength="20" placeholder="请输入真实姓名" autocomplete="name">
+
+    <div class="tk-body" id="tk-form">
+      <div class="tk-tip">请登记以下信息完成入场（仅用于本次活动签到统计）<br>入场<b>不等于参与抽奖</b>——抽奖环节请再扫大屏幕上的二维码</div>
+      <div class="f">
+        <label>姓名<b>*</b></label>
+        <input id="pf-name" maxlength="20" placeholder="请输入真实姓名" autocomplete="name">
+      </div>
+      <div class="f">
+        <label>手机号<b>*</b></label>
+        <input id="pf-phone" type="tel" maxlength="11" placeholder="11 位手机号" autocomplete="tel">
+      </div>
+      <div class="f">
+        <label>企业/单位名称（选填）</label>
+        <input id="pf-dept" maxlength="40" placeholder="如：××科技有限公司">
+      </div>
+      <button id="pf-submit" class="btn-submit">完 成 入 场</button>
+      <div class="err" id="pf-err"></div>
     </div>
-    <div class="pf-field">
-      <label>手机号<b>*</b></label>
-      <input id="pf-phone" type="tel" maxlength="11" placeholder="11 位手机号" autocomplete="tel">
+
+    <div class="tk-done hidden" id="tk-done">
+      <div class="big">🎫</div>
+      <h2>入场成功</h2>
+      <div class="who" id="tk-who"></div>
+      <div class="tk-next">🎁 想参与抽奖？<br>开奖环节请扫描<b>大屏幕上的抽奖二维码</b><br>已登记的资料将自动带出，无需重复填写</div>
     </div>
-    <div class="pf-field">
-      <label>企业/单位名称（选填）</label>
-      <input id="pf-dept" maxlength="40" placeholder="如：××科技有限公司">
-    </div>
-    <button id="pf-submit" class="btn pf-submit">完成入场签到</button>
-    <div class="pf-err" id="pf-err"></div>
   </section>
 
-  <section id="pf-done" class="card pf-card pf-done hidden">
-    <div class="big">✅</div>
-    <h2>入场成功！</h2>
-    <p id="pf-done-name"></p>
-    <div class="next">🎁 想参与抽奖？<br>开奖环节请扫描<b>大屏幕上的抽奖二维码</b>，资料自动带出，无需重复填写</div>
-  </section>
-
-  <footer class="foot">祝您参会愉快 🧧</footer>
+  <footer class="foot">祝您参会愉快</footer>
 </div>
 
-<script src="/js/http.js?v=19"></script>
-<script src="/js/confetti.js?v=19"></script>
+<script src="/js/http.js?v=20"></script>
+<script src="/js/confetti.js?v=20"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -91,22 +148,21 @@
       if (e.status === 401) return location.replace('/auth/wechat?mode=entry');
       return location.replace('/');
     }
-    $('act-title').textContent = s.activity.title || '幸运抽奖';
-    $('act-subtitle').textContent = s.activity.subtitle || '';
-    // 已填过资料（入场过或抽奖过）→ 直接展示完成态
-    if (s.profile_complete) return showDone(s, false);
-    const me = s.me;
-    const img = $('pf-avatar');
-    if (me.avatar) img.src = me.avatar;
-    $('pf-wx-name').textContent = '微信昵称：' + (me.wechat_nickname || me.nickname || '');
+    $('act-title') && ($('act-title').textContent = s.activity.title || '');
+    if (s.profile_complete) return showDone(s.me, false);
+    if (s.me.avatar) $('tk-avatar').src = s.me.avatar;
+    $('tk-wx').textContent = '微信昵称：' + (s.me.wechat_nickname || s.me.nickname || '');
   }
 
-  function showDone(s, celebrate) {
-    $('pf-form').classList.add('hidden');
-    const name = s.me.nickname || '';
-    $('pf-done-name').textContent = name ? `${name} · 已完成入场登记` : '已完成入场登记';
-    $('pf-done').classList.remove('hidden');
-    if (celebrate) confetti.burst(innerWidth / 2, innerHeight / 2.4, { count: 60, speed: 9, lift: 6 });
+  function showDone(me, celebrate) {
+    $('tk-form').classList.add('hidden');
+    const name = me.real_name || me.nickname || '';
+    $('tk-who').textContent = name ? `${name} · ${me.phone ? me.phone.slice(0,3) + '****' + me.phone.slice(-4) : '已完成登记'}` : '已完成入场登记';
+    $('tk-done').classList.remove('hidden');
+    if (celebrate) {
+      confetti.burst(innerWidth / 2, innerHeight / 2.6, { count: 50, speed: 8, lift: 6 });
+      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    }
   }
 
   async function submit() {
@@ -121,8 +177,7 @@
     try {
       await http.post('/api/me/profile', { real_name: name, phone, dept });
       const { data } = await http.get('/api/me/state?v=0&wait=1', { retries: 1 });
-      showDone(data, true);
-      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+      showDone({ ...data.me, phone }, true);
     } catch (e) {
       err.textContent = (e && e.message) || '提交失败，请重试';
       $('pf-submit').disabled = false;

@@ -1,6 +1,5 @@
 'use strict';
 const express = require('express');
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
@@ -12,22 +11,50 @@ const sync = require('../services/sync');
 const QRCode = require('qrcode');
 const { entryUrl } = require('./screen');
 const { claimCode } = require('../lib/claimcode');
+const adminAuth = require('../lib/adminauth');
+const { createRateLimiter } = require('../lib/ratelimit');
 
 const router = express.Router();
 
-// ---- 鉴权 ----
+// ---- 鉴权：账号密码会话（Cookie） ----
+const loginLimit = createRateLimiter(15, 5 * 60_000); // 防爆破
+
 function requireAdmin(req, res, next) {
-  const key = req.headers['x-admin-key'] || req.query.key || '';
-  if (!config.ADMIN_KEY || !timingSafeEqualStr(String(key), config.ADMIN_KEY)) {
-    return res.status(401).json({ error: '管理密钥错误' });
-  }
+  const user = adminAuth.sessionUser(req);
+  if (!user) return res.status(401).json({ error: '未登录或会话已过期' });
+  req.adminUser = user;
   next();
 }
-function timingSafeEqualStr(a, b) {
-  const ba = Buffer.from(a), bb = Buffer.from(b);
-  if (ba.length !== bb.length) return false;
-  return crypto.timingSafeEqual(ba, bb);
-}
+
+/** 登录（下发 12 小时会话 Cookie） */
+router.post('/api/admin/login', loginLimit, (req, res) => {
+  const { username, password } = req.body || {};
+  const admin = adminAuth.verifyLogin(username, password);
+  if (!admin) return res.status(401).json({ error: '账号或密码错误' });
+  adminAuth.issueSession(res, admin.username);
+  res.json({ ok: true, username: admin.username });
+});
+
+router.post('/api/admin/logout', (req, res) => {
+  adminAuth.clearSession(res);
+  res.json({ ok: true });
+});
+
+router.get('/api/admin/me', (req, res) => {
+  const user = adminAuth.sessionUser(req);
+  if (!user) return res.status(401).json({ error: '未登录' });
+  res.json({ username: user });
+});
+
+/** 修改自己的密码 */
+router.post('/api/admin/password', requireAdmin, (req, res) => {
+  try {
+    adminAuth.changePassword(req.adminUser, (req.body || {}).newPassword);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
 
 function winnerRows() {
   return draw.listWinners().map((w) => ({

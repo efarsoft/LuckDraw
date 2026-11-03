@@ -9,13 +9,14 @@
 <link rel="stylesheet" href="/css/admin.css?v=16">
 </head>
 <body>
-<!-- 密钥门 -->
+<!-- 登录门（账号密码） -->
 <div id="gate" class="gate">
   <div class="card gate-card">
     <h2>🧧 抽奖管理台</h2>
-    <p>请输入管理密钥（.env 中 ADMIN_KEY）</p>
-    <input id="gate-key" type="password" placeholder="管理密钥" autocomplete="off">
-    <button id="gate-btn" class="btn">进入</button>
+    <p>请使用管理员账号登录</p>
+    <input id="gate-user" placeholder="账号" autocomplete="username">
+    <input id="gate-pass" type="password" placeholder="密码" autocomplete="current-password">
+    <button id="gate-btn" class="btn">登 录</button>
     <div id="gate-err" class="gate-err"></div>
   </div>
 </div>
@@ -26,6 +27,11 @@
     <div class="brand">🧧 抽奖管理台 <span id="role-badge" class="badge gold">standalone</span></div>
     <div class="sync-pill" id="sync-pill"><span class="sync-dot"></span><span id="sync-text">检测中…</span></div>
     <button id="btn-sync-now" class="btn ghost small hidden" title="立即拉取云端签到 + 回传待发结果">⟳ 立即同步</button>
+    <div class="admin-user" id="admin-user-box" style="display:flex;align-items:center;gap:8px">
+      <span class="badge gold" id="admin-username">-</span>
+      <button id="btn-pass" class="btn ghost small" title="修改登录密码">🔑改密</button>
+      <button id="btn-logout" class="btn ghost small">退出</button>
+    </div>
     <div class="top-actions">
       <button id="btn-export" class="btn ghost small">⬇ 导出中奖名单</button>
       <button id="btn-export-users" class="btn ghost small" title="全部签到用户：姓名/手机号/企业/中奖情况/时间">⬇ 导出签到名单</button>

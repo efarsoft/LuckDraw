@@ -62,6 +62,16 @@ CREATE TABLE IF NOT EXISTS sync_state (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
+
+-- 管理台账号（标准账号密码登录；scrypt 加盐哈希）
+CREATE TABLE IF NOT EXISTS admins (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  username      TEXT UNIQUE NOT NULL,
+  pass_salt     TEXT NOT NULL,
+  pass_hash     TEXT NOT NULL,
+  created_at    INTEGER NOT NULL,
+  last_login_at INTEGER
+);
 `);
 
 // ---- 增量迁移：扫码资料字段（存量库自动补列） ----
@@ -70,6 +80,19 @@ if (!userCols.includes('real_name')) db.exec(`ALTER TABLE users ADD COLUMN real_
 if (!userCols.includes('phone')) db.exec(`ALTER TABLE users ADD COLUMN phone TEXT`);
 if (!userCols.includes('dept')) db.exec(`ALTER TABLE users ADD COLUMN dept TEXT`);
 if (!userCols.includes('in_pool')) db.exec(`ALTER TABLE users ADD COLUMN in_pool INTEGER NOT NULL DEFAULT 1`);
+
+// ---- 默认管理员（首次启动从环境变量播种；之后改密码在管理台） ----
+(function ensureDefaultAdmin() {
+  const crypto = require('crypto');
+  const c = db.prepare('SELECT COUNT(*) c FROM admins').get().c;
+  if (c > 0) return;
+  const username = process.env.ADMIN_USER || 'admin';
+  const password = process.env.ADMIN_PASSWORD || 'admin888';
+  const salt = crypto.randomBytes(16).toString('hex');
+  db.prepare('INSERT INTO admins(username, pass_salt, pass_hash, created_at) VALUES(?,?,?,?)').run(
+    username, salt, crypto.scryptSync(String(password), salt, 64).toString('hex'), Date.now()
+  );
+})();
 
 // ---- settings 初始化 ----
 const DEFAULT_SETTINGS = {
