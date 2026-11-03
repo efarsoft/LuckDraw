@@ -43,7 +43,7 @@ router.get('/api/sync/avatar', requirePair, (req, res) => {
   res.send(buf);
 });
 
-const OWNED_KEYS = ['activity_title', 'activity_subtitle', 'sign_in_enabled', 'current_round_id', 'phase'];
+const OWNED_KEYS = ['activity_title', 'activity_subtitle', 'sign_in_enabled', 'current_round_id', 'phase', 'group_reveal_threshold'];
 
 router.post('/api/sync/push', requirePair, (req, res) => {
   const snap = req.body || {};

@@ -595,8 +595,9 @@
       return;
     }
 
-    // 大名额（>5 人）：集体揭晓——单次扫场 + 大字 + 名单板瀑布点亮，避免逐人寻人拖沓
-    if (valid.length > 5) {
+    // 大名额（超过阈值）：集体揭晓——单次扫场 + 大字 + 名单板瀑布点亮，避免逐人寻人拖沓
+    const threshold = (cur && cur.group_reveal_threshold) || 5;
+    if (valid.length > threshold) {
       sphere.hunt = { mode: 'sweep', spotAngle: Math.random() * Math.PI * 2, spotSpeed: 2.2, lockedId: null };
       const tickTimer = setInterval(() => AudioFX.tick(), 120);
       setTimeout(() => {

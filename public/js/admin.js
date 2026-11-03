@@ -76,6 +76,7 @@
       $('inp-title').value = data.activity.title;
       $('inp-subtitle').value = data.activity.subtitle;
       $('inp-signin').checked = data.activity.sign_in_enabled;
+      $('inp-threshold').value = data.activity.group_reveal_threshold || 5;
       $('inp-title').dataset.hydrated = '1';
     }
     $('st-users').textContent = data.stats.users;
@@ -232,6 +233,7 @@
           title: $('inp-title').value.trim(),
           subtitle: $('inp-subtitle').value.trim(),
           sign_in_enabled: $('inp-signin').checked,
+          group_reveal_threshold: parseInt($('inp-threshold').value, 10) || 5,
         }),
       '已保存'
     );

@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2720%27 fill=%27%23a31212%27/%3E%3Ctext x=%2750%27 y=%2768%27 text-anchor=%27middle%27 font-size=%2756%27 fill=%27%23ffd700%27 font-family=%27serif%27 font-weight=%27bold%27%3E%E5%A5%96%3C/text%3E%3C/svg%3E">
 <title>抽奖系统 · 管理台</title>
-<link rel="stylesheet" href="/css/base.css?v=12">
-<link rel="stylesheet" href="/css/admin.css?v=12">
+<link rel="stylesheet" href="/css/base.css?v=13">
+<link rel="stylesheet" href="/css/admin.css?v=13">
 </head>
 <body>
 <!-- 密钥门 -->
@@ -37,6 +37,7 @@
     <label>活动标题 <input id="inp-title" maxlength="60"></label>
     <label>副标题 <input id="inp-subtitle" maxlength="80" placeholder="扫码参与 · 好运连连"></label>
     <label class="switch-label"><input type="checkbox" id="inp-signin"> <span>签到通道开放</span></label>
+    <label>集体揭晓阈值 <input id="inp-threshold" type="number" min="1" max="100" style="width:64px" title="中奖人数超过该值时，大屏从逐个寻人切换为集体揭晓"> 人</label>
     <button id="btn-save-activity" class="btn small">保存</button>
     <div class="strip-stats">
       已签到 <b id="st-users">0</b> ｜ 奖池 <b id="st-pool">0</b> ｜ 已中奖 <b id="st-won">0</b>
@@ -127,7 +128,7 @@
   </div>
 </div>
 
-<script src="/js/http.js?v=12"></script>
-<script src="/js/admin.js?v=12"></script>
+<script src="/js/http.js?v=13"></script>
+<script src="/js/admin.js?v=13"></script>
 </body>
 </html>

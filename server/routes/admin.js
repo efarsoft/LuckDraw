@@ -53,6 +53,7 @@ router.get('/api/admin/overview', requireAdmin, (req, res) => {
       title: state.getSetting('activity_title'),
       subtitle: state.getSetting('activity_subtitle'),
       sign_in_enabled: state.getSetting('sign_in_enabled', '1') === '1',
+      group_reveal_threshold: parseInt(state.getSetting('group_reveal_threshold', '5'), 10) || 5,
     },
     phase: state.getSetting('phase', 'idle'),
     current_round_id: currentRoundId,
@@ -69,10 +70,15 @@ router.get('/api/admin/overview', requireAdmin, (req, res) => {
 });
 
 router.put('/api/admin/activity', requireAdmin, (req, res) => {
-  const { title, subtitle, sign_in_enabled } = req.body || {};
+  const { title, subtitle, sign_in_enabled, group_reveal_threshold } = req.body || {};
   if (title !== undefined) state.setSetting('activity_title', String(title).slice(0, 60));
   if (subtitle !== undefined) state.setSetting('activity_subtitle', String(subtitle).slice(0, 80));
   if (sign_in_enabled !== undefined) state.setSetting('sign_in_enabled', sign_in_enabled ? '1' : '0');
+  if (group_reveal_threshold !== undefined) {
+    const n = parseInt(group_reveal_threshold, 10);
+    if (Number.isInteger(n) && n >= 1 && n <= 100) state.setSetting('group_reveal_threshold', String(n));
+    else return res.status(400).json({ error: '集体揭晓阈值须为 1~100 的整数' });
+  }
   sync.markDirty();
   res.json({ ok: true });
 });

@@ -46,6 +46,7 @@ function buildScreenState() {
       title: state.getSetting('activity_title'),
       subtitle: state.getSetting('activity_subtitle'),
     },
+    group_reveal_threshold: parseInt(state.getSetting('group_reveal_threshold', '5'), 10) || 5,
     phase: state.getSetting('phase', 'idle'),
     current_round_id: currentRoundId,
     rounds: rounds.map((r) => ({ ...r, drawn: r.status === 'drawn' })),
