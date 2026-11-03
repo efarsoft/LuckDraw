@@ -84,6 +84,7 @@ router.get('/api/screen/qr', async (req, res) => {
 });
 
 function entryUrl() {
+  if (config.ENTRY_URL) return config.ENTRY_URL; // 显式指定优先（预览/彩排指云端）
   return config.ROLE === 'local' ? config.CLOUD_PUBLIC_URL : config.BASE_URL;
 }
 

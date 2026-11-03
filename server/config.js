@@ -25,6 +25,7 @@ const config = {
   BASE_URL: (process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/+$/, ''),
   CLOUD_URL: (process.env.CLOUD_URL || '').replace(/\/+$/, ''),
   CLOUD_PUBLIC_URL: (process.env.CLOUD_PUBLIC_URL || '').replace(/\/+$/, ''),
+  ENTRY_URL: (process.env.ENTRY_URL || '').replace(/\/+$/, ''),   // 二维码强制指向（预览/彩排时指云端真地址）
   PAIR_KEY: process.env.PAIR_KEY || '',
   ADMIN_KEY: process.env.ADMIN_KEY || '',
   COOKIE_SECRET: process.env.COOKIE_SECRET || 'dev-secret-do-not-use-in-prod-0123456789',
