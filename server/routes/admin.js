@@ -342,7 +342,11 @@ router.get('/api/admin/export/users', requireAdmin, (req, res) => {
 });
 
 /** 彩排重置：winners=只清中奖；all=清全部数据 */
-router.post('/api/admin/reset', requireAdmin, requireCloudDrawEnabled, (req, res) => {
+/** 重置只允许在本地/单机执行：云端重置会造成两端数据分裂（拉取无删除通道） */
+router.post('/api/admin/reset', requireAdmin, (req, res) => {
+  if (config.ROLE === 'cloud') {
+    return res.status(403).json({ error: '重置操作请在本地节点执行（会同步清两端），云端单侧重置会造成数据分裂' });
+  }
   const scope = String((req.body || {}).scope || '');
   if (scope === 'winners') {
     draw.resetWinners();
@@ -359,6 +363,7 @@ router.post('/api/admin/reset', requireAdmin, requireCloudDrawEnabled, (req, res
     })();
     state.setSyncState('pull_watermark', '0'); // 清空拉取水位，避免云端残留用户回流复活
     state.setSyncState('clear_users_flag', '1'); // 随下一次快照通知云端清空签到用户
+    state.setSyncState('clear_config_flag', '1'); // v25：轮次/配置归云端，全量重置需一并清云端配置
     sync.markDirty();
     return res.json({ ok: true });
   }

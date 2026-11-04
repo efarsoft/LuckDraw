@@ -53,8 +53,9 @@ const pairHeaders = { 'x-pair-key': config.PAIR_KEY, 'content-type': 'applicatio
 
 /** 增量拉取：新用户 + 变更用户（入池/资料更新）+ 头像文件（回流到本地） */
 async function pullOnce() {
-  // 全量重置尚未被云端确认时暂停拉取，防止旧用户回流复活
+  // 全量重置尚未被云端确认时暂停拉取，防止旧用户/旧配置回流复活
   if (state.getSyncState('clear_users_flag', '0') === '1') return 0;
+  if (state.getSyncState('clear_config_flag', '0') === '1') return 0;
   const since = parseInt(state.getSyncState('pull_watermark', '0'), 10) || 0;
   const sinceTs = parseInt(state.getSyncState('pull_ts', '0'), 10) || 0;
   const resp = await fetchWithTimeout(
@@ -98,6 +99,22 @@ async function pullOnce() {
       ).run();
     })();
     changed = true;
+  }
+
+  // ②′ 中奖结果采纳：云端（灾备）开出的结果回流本地——两端奖池互斥，防重复中奖/防推送覆盖丢失
+  if (Array.isArray(data.winners)) {
+    const ins = db.prepare('INSERT OR IGNORE INTO winners(id, round_id, user_id, status, won_at) VALUES(?,?,?,?,?)');
+    let adopted = 0;
+    db.transaction(() => {
+      for (const w of data.winners) {
+        const r = ins.run(w.id, w.round_id, w.user_id, w.status || 'valid', w.won_at);
+        if (r.changes > 0) adopted++;
+      }
+    })();
+    if (adopted > 0) {
+      changed = true;
+      markDirty(); // 采纳后立即推送（快照含完整集合），云端同样保持一致
+    }
   }
 
   // ③ 云端拥有的活动设置
@@ -180,6 +197,7 @@ async function pushOnce({ heartbeatOnly = false } = {}) {
     stats: { pool: require('./draw').poolCount(), users: db.prepare('SELECT COUNT(*) c FROM users').get().c },
   };
   if (state.getSyncState('clear_users_flag', '0') === '1') snapshot.clear_users = true;
+  if (state.getSyncState('clear_config_flag', '0') === '1') snapshot.clear_config = true;
 
   try {
     const resp = await fetchWithTimeout(
@@ -191,6 +209,7 @@ async function pushOnce({ heartbeatOnly = false } = {}) {
     const ack = await resp.json().catch(() => ({}));
     if (ack.ok !== true) throw new Error(ack.error || 'push rejected');
     if (snapshot.clear_users) state.setSyncState('clear_users_flag', '0'); // 云端已确认清空
+    if (snapshot.clear_config) state.setSyncState('clear_config_flag', '0');
     state.setSyncState('last_push_ok_at', String(Date.now()));
     state.setSyncState('last_error', '');
   } catch (e) {

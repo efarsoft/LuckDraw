@@ -25,6 +25,15 @@ function requirePair(req, res, next) {
 const CLOUD_CONFIG_KEYS = ['activity_title', 'activity_subtitle', 'profile_form_enabled', 'sign_in_enabled', 'group_reveal_threshold', 'gift_note'];
 // 本地执行端拥有、随推送上报的运行态键
 const LOCAL_RUNTIME_KEYS = ['current_round_id', 'phase'];
+// 全量重置时云端配置回落的默认值（与 db.js DEFAULT_SETTINGS 对齐）
+const CONFIG_DEFAULTS = {
+  activity_title: '年度盛典 · 幸运抽奖',
+  activity_subtitle: '扫码参与 · 好运连连',
+  profile_form_enabled: '1',
+  sign_in_enabled: '1',
+  group_reveal_threshold: '5',
+  gift_note: '',
+};
 
 router.get('/api/sync/pull', requirePair, (req, res) => {
   const since = parseInt(req.query.since_id || '0', 10) || 0;
@@ -36,9 +45,11 @@ router.get('/api/sync/pull', requirePair, (req, res) => {
     )
     .all(since, sinceTs);
   const rounds = db.prepare('SELECT * FROM rounds ORDER BY id').all();
+  // 中奖结果全量下发：本地采纳云端（灾备）开出的结果，保证两端奖池互斥、防重复中奖
+  const winners = db.prepare('SELECT * FROM winners ORDER BY id').all();
   const settings = {};
   for (const k of CLOUD_CONFIG_KEYS) settings[k] = state.getSetting(k);
-  res.json({ users, rounds, settings, server_time: Date.now() });
+  res.json({ users, rounds, winners, settings, server_time: Date.now() });
 });
 
 router.get('/api/sync/avatar', requirePair, (req, res) => {
@@ -77,6 +88,13 @@ router.post('/api/sync/push', requirePair, (req, res) => {
     }
     for (const u of snap.manual_users || []) {
       usersSvc.upsertManualUser(u);
+    }
+    if (snap.clear_config) {
+      // 本地全量重置：云端配置（轮次+活动设置）一并清空，回默认值
+      db.prepare('DELETE FROM rounds').run();
+      for (const k of CLOUD_CONFIG_KEYS) {
+        state.setSetting(k, CONFIG_DEFAULTS[k] !== undefined ? CONFIG_DEFAULTS[k] : '', { silent: true });
+      }
     }
     const settings = snap.settings || {};
     for (const k of LOCAL_RUNTIME_KEYS) {
