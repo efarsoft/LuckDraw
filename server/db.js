@@ -100,6 +100,7 @@ const DEFAULT_SETTINGS = {
   activity_subtitle: '扫码参与 · 好运连连',
   sign_in_enabled: '1',
   profile_form_enabled: '1',   // 扫码后需填写资料（姓名/手机号）
+  gift_note: '',              // 伴手礼提示（空=不显示），如：精美伴手礼一份 · 活动结束时出口领取
   current_round_id: '',
   phase: 'idle',            // idle | ready | rolling | reveal
   state_version: '1',

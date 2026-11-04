@@ -83,6 +83,7 @@ router.get('/api/admin/overview', requireAdmin, (req, res) => {
       sign_in_enabled: state.getSetting('sign_in_enabled', '1') === '1',
       profile_form_enabled: state.getSetting('profile_form_enabled', '1') === '1',
       group_reveal_threshold: parseInt(state.getSetting('group_reveal_threshold', '5'), 10) || 5,
+      gift_note: state.getSetting('gift_note', ''),
     },
     phase: state.getSetting('phase', 'idle'),
     current_round_id: currentRoundId,
@@ -99,9 +100,10 @@ router.get('/api/admin/overview', requireAdmin, (req, res) => {
 });
 
 router.put('/api/admin/activity', requireAdmin, (req, res) => {
-  const { title, subtitle, sign_in_enabled, profile_form_enabled, group_reveal_threshold } = req.body || {};
+  const { title, subtitle, sign_in_enabled, profile_form_enabled, group_reveal_threshold, gift_note } = req.body || {};
   if (title !== undefined) state.setSetting('activity_title', String(title).slice(0, 60));
   if (subtitle !== undefined) state.setSetting('activity_subtitle', String(subtitle).slice(0, 80));
+  if (gift_note !== undefined) state.setSetting('gift_note', String(gift_note).slice(0, 100));
   if (sign_in_enabled !== undefined) state.setSetting('sign_in_enabled', sign_in_enabled ? '1' : '0');
   if (profile_form_enabled !== undefined) state.setSetting('profile_form_enabled', profile_form_enabled ? '1' : '0');
   if (group_reveal_threshold !== undefined) {

@@ -101,6 +101,7 @@
       $('inp-signin').checked = data.activity.sign_in_enabled;
       $('inp-profile').checked = data.activity.profile_form_enabled !== false;
       $('inp-threshold').value = data.activity.group_reveal_threshold || 5;
+      $('inp-gift').value = data.activity.gift_note || '';
       $('inp-title').dataset.hydrated = '1';
     }
     $('st-users').textContent = data.stats.users;
@@ -265,6 +266,7 @@
           sign_in_enabled: $('inp-signin').checked,
           profile_form_enabled: $('inp-profile').checked,
           group_reveal_threshold: parseInt($('inp-threshold').value, 10) || 5,
+          gift_note: $('inp-gift').value.trim(),
         }),
       '已保存'
     );

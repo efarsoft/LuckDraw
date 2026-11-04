@@ -95,6 +95,13 @@
 
     $('stale-tip').classList.toggle('hidden', !s.link || !s.link.stale);
 
+    // 伴手礼提示（配置为空则隐藏；领奖查询视图不显示）
+    const gb = $('gift-banner');
+    if (s.gift_note && !CLAIM) {
+      $('gift-note-text').textContent = s.gift_note;
+      gb.classList.remove('hidden');
+    } else gb.classList.add('hidden');
+
     // 轮次进度
     const box = $('rounds-list');
     const hasRounds = (s.rounds || []).length > 0;

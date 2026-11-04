@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#6b0606">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2720%27 fill=%27%23a31212%27/%3E%3Ctext x=%2750%27 y=%2768%27 text-anchor=%27middle%27 font-size=%2756%27 fill=%27%23ffd700%27 font-family=%27serif%27 font-weight=%27bold%27%3E%E5%A5%96%3C/text%3E%3C/svg%3E">
 <title>幸运抽奖</title>
-<link rel="stylesheet" href="/css/base.css?v=21">
-<link rel="stylesheet" href="/css/index.css?v=21">
+<link rel="stylesheet" href="/css/base.css?v=22">
+<link rel="stylesheet" href="/css/index.css?v=22">
 </head>
 <body>
 <div class="page">
@@ -68,6 +68,15 @@
 
   <div id="stale-tip" class="stale-tip hidden">📡 现场网络波动，中奖结果以大屏公布为准</div>
 
+  <!-- 伴手礼提示（结束时领取） -->
+  <section id="gift-banner" class="gift-banner hidden">
+    <span class="gb-icon">🎁</span>
+    <div>
+      <div class="gb-title">到场伴手礼</div>
+      <div class="gb-note" id="gift-note-text"></div>
+    </div>
+  </section>
+
   <!-- 领奖查询视图（领奖台二维码 ?claim=1 进入） -->
   <section id="claim-view" class="card claim-view hidden">
     <div id="claim-body"><div class="claim-loading">查询中…</div></div>
@@ -82,8 +91,8 @@
   <footer class="foot">祝您好运连连 🧧</footer>
 </div>
 
-<script src="/js/http.js?v=21"></script>
-<script src="/js/confetti.js?v=21"></script>
-<script src="/js/index.js?v=21"></script>
+<script src="/js/http.js?v=22"></script>
+<script src="/js/confetti.js?v=22"></script>
+<script src="/js/index.js?v=22"></script>
 </body>
 </html>

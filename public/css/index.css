@@ -45,6 +45,17 @@ header p { margin-top: 6px; color: var(--ink-dim); font-size: 14px; letter-spaci
   background: rgba(0, 0, 0, 0.3); border: 1px dashed rgba(255, 215, 0, 0.4); color: var(--gold-1);
 }
 
+/* 伴手礼提示 */
+.gift-banner {
+  margin-top: 12px; padding: 14px 16px; border-radius: 14px;
+  display: flex; align-items: center; gap: 13px;
+  border: 1.5px dashed rgba(255, 215, 0, 0.55);
+  background: linear-gradient(140deg, rgba(255, 215, 0, 0.13), rgba(255, 255, 255, 0.03));
+}
+.gift-banner .gb-icon { font-size: 28px; }
+.gb-title { font-size: 14px; font-weight: 900; color: var(--gold-2); letter-spacing: .08em; }
+.gb-note { font-size: 12.5px; color: var(--ink-dim); margin-top: 3px; line-height: 1.6; }
+
 .rounds-section { margin-top: 26px; }
 .section-title { font-size: 16px; color: var(--gold-2); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
 #rounds-list { display: flex; flex-direction: column; gap: 10px; }

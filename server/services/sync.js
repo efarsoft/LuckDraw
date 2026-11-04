@@ -22,7 +22,7 @@ let pushFailCount = 0;
 let heartbeatDue = 0;
 let immediatePush = null;     // markDirty 触发的立即推送（去抖）
 
-const OWNED_SETTINGS = ['activity_title', 'activity_subtitle', 'sign_in_enabled', 'current_round_id', 'phase', 'group_reveal_threshold'];
+const OWNED_SETTINGS = ['activity_title', 'activity_subtitle', 'sign_in_enabled', 'current_round_id', 'phase', 'group_reveal_threshold', 'gift_note'];
 
 function markDirty() {
   try {

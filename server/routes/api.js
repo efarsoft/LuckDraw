@@ -42,6 +42,7 @@ function buildMeState(userId) {
     v: state.getVersion(),
     activity,
     phase: state.getSetting('phase', 'idle'),
+    gift_note: state.getSetting('gift_note', ''),
     current_round_id: parseInt(state.getSetting('current_round_id', '0'), 10) || null,
     me: {
       nickname: displayName,
