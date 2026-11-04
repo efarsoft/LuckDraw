@@ -10,7 +10,7 @@ const usersSvc = require('../services/users');
 const state = require('../services/state');
 const sync = require('../services/sync');
 const QRCode = require('qrcode');
-const { entryUrl } = require('./screen');
+const { entryUrl, entryUrlRaw } = require('./screen');
 const { claimCode } = require('../lib/claimcode');
 const adminAuth = require('../lib/adminauth');
 const { createRateLimiter } = require('../lib/ratelimit');
@@ -275,7 +275,11 @@ router.get('/api/admin/users', requireAdmin, (req, res) => {
 router.get('/api/admin/qrcode', requireAdmin, async (req, res) => {
   const claim = req.query.claim === '1';
   const entry = req.query.entry === '1';
-  const url = claim ? entryUrl() + '/claim' : entry ? entryUrl() + '/entry' : entryUrl();
+  // 所有二维码先走 OAuth 识别当前微信用户（防同手机切换微信号后串数据）
+  const raw = entryUrlRaw();
+  const url = entry ? raw + '/auth/wechat?mode=entry'
+    : claim ? raw + '/auth/wechat?mode=claim'
+    : raw + '/auth/wechat';
   try {
     const dataUrl = await QRCode.toDataURL(url, { width: 480, margin: 2, color: { dark: '#5c0000', light: '#ffffff' } });
     res.json({ url, dataUrl });

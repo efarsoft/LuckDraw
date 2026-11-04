@@ -13,35 +13,43 @@ const router = express.Router();
 const authLimit = createRateLimiter(30, 60_000);
 
 /** 登录完成后的落点：
- *  entry 模式（入场签到）→ /entry.html（不进奖池）
- *  默认（抽奖签到）→ 资料未完善进资料页，否则参与页 */
+ *  entry 模式（入场签到）→ /entry（不进奖池）
+ *  claim 模式（领奖查询）→ /claim
+ *  默认（抽奖签到）→ 资料未完善进 /profile，否则参与页 / */
 function postLoginRedirect(res, user, mode) {
-  if (mode === 'entry') return res.redirect('/entry'); // 入场签到 → 蓝色入场页
+  if (mode === 'entry') return res.redirect('/entry');
+  if (mode === 'claim') return res.redirect('/claim');
   const required = state.getSetting('profile_form_enabled', '1') === '1';
   const need = required && !(user.real_name && user.phone);
-  res.redirect(need ? '/profile' : '/'); // 抽奖签到 → 红色抽奖页（或直接参与页）
+  res.redirect(need ? '/profile' : '/');
 }
 
-/** 入场模式标记：签名 Cookie 传递过 OAuth 回调（10 分钟） */
-function setEntryMode(res, on) {
-  res.setHeader(
-    'Set-Cookie',
-    on
-      ? `ld_mode=${sign('entry')}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=600`
-      : `ld_mode=; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=0`
-  );
+/** 模式标记（entry/claim）：签名 Cookie 传递过 OAuth 回调（10 分钟） */
+function setAuthMode(res, mode) {
+  // 支持多个 Set-Cookie（先清旧值再设新值）
+  const clears = ['entry', 'claim'].map(m => `ld_mode=; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=0`).join('\r\n');
+  if (mode) {
+    res.setHeader('Set-Cookie', [
+      `ld_mode=${sign(mode)}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=600`,
+      `ld_mode_clear=1; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=0`
+    ]);
+  } else {
+    res.setHeader('Set-Cookie', `ld_mode=; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=0`);
+  }
 }
-function readEntryMode(req) {
-  return verify(parseCookies(req.headers.cookie).ld_mode || '') === 'entry';
+function readAuthMode(req) {
+  const v = verify(parseCookies(req.headers.cookie).ld_mode || '');
+  return (v === 'entry' || v === 'claim') ? v : null;
 }
 
-/** 入口：跳微信授权（Mock 模式跳模拟登录页）。?mode=entry = 入场签到（不进奖池）。
- * 签到通道关闭时也放行进入授权——是否放行在回调处按「是否老用户」判定，
- * 保证已在奖池的用户即使 Cookie 丢失（静默重授权）也不被误拦。 */
+/** 入口：跳微信授权（始终重新识别身份，防同手机多账号串数据）。
+ *  ?mode=entry = 入场签到（不进奖池）
+ *  ?mode=claim = 领奖查询
+ *  默认 = 抽奖签到（入池） */
 router.get('/auth/wechat', authLimit, (req, res) => {
-  const entry = req.query.mode === 'entry';
-  if (wechat.isMock()) return res.redirect('/auth/mock' + (entry ? '?mode=entry' : ''));
-  setEntryMode(res, entry);
+  const mode = req.query.mode === 'entry' ? 'entry' : req.query.mode === 'claim' ? 'claim' : null;
+  if (wechat.isMock()) return res.redirect('/auth/mock' + (mode ? `?mode=${mode}` : ''));
+  setAuthMode(res, mode);
   const stateVal = crypto.randomBytes(8).toString('hex');
   res.setHeader(
     'Set-Cookie',
@@ -63,13 +71,15 @@ router.get('/auth/wechat/callback', authLimit, async (req, res, next) => {
     if (!code) return res.status(400).send('授权失败：缺少 code');
     const info = await wechat.exchangeUser(code);
     if (!info || !info.openid) return res.status(502).send('微信授权失败，请稍后重试');
-    const entry = readEntryMode(req);
-    setEntryMode(res, false); // 用后即清
+    const mode = readAuthMode(req);
+    setAuthMode(res, null); // 用后即清
+    const entry = mode === 'entry';
     const signInOpen = state.getSetting('sign_in_enabled', '1') === '1';
     const existing = db.prepare('SELECT * FROM users WHERE openid = ?').get(info.openid);
     if (!existing && !signInOpen) {
       return res.redirect('/?signin=closed'); // 通道已关且是新用户 → 拦截；老用户放行（Cookie 丢失场景）
     }
+    // 关键修复：无论旧 Cookie 是谁，始终用本次 OAuth 识别到的 openid 为准
     const user = existing || (await users.signInUser({
       openid: info.openid,
       nickname: info.nickname,
@@ -77,8 +87,8 @@ router.get('/auth/wechat/callback', authLimit, async (req, res, next) => {
       source: 'wechat',
       inPool: !entry, // 入场签到不进奖池；抽奖签到直接入池
     }));
-    setUserCookie(res, user.id);
-    postLoginRedirect(res, user, entry ? 'entry' : 'draw');
+    setUserCookie(res, user.id); // 覆盖旧 Cookie（可能是另一个微信号的）
+    postLoginRedirect(res, user, mode || 'draw');
   } catch (e) {
     next(e);
   }

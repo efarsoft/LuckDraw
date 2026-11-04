@@ -85,8 +85,11 @@ router.get('/api/screen/qr', async (req, res) => {
 });
 
 function entryUrl() {
-  if (config.ENTRY_URL) return config.ENTRY_URL; // 显式指定优先（预览/彩排指云端）
-  return config.ROLE === 'local' ? config.CLOUD_PUBLIC_URL : config.BASE_URL;
+  const base = config.ENTRY_URL || (config.ROLE === 'local' ? config.CLOUD_PUBLIC_URL : config.BASE_URL);
+  return base + '/auth/wechat'; // 始终先走 OAuth 识别当前微信用户（防同手机多账号串数据）
+}
+function entryUrlRaw() {
+  return config.ENTRY_URL || (config.ROLE === 'local' ? config.CLOUD_PUBLIC_URL : config.BASE_URL);
 }
 
-module.exports = { router, buildScreenState, entryUrl };
+module.exports = { router, buildScreenState, entryUrl, entryUrlRaw };
