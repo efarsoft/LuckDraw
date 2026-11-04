@@ -96,10 +96,9 @@
   // ---------- 常规视图 ----------
   function render(s) {
     version = s.v;
-    // 资料未完善（且要求填写）→ 引导去入场页（而不是抽奖资料页）
-    // 兜底：未入场的人扫抽奖码，先完成入场登记再回来扫码
+    // 资料未完善（且要求填写）→ 跳抽奖签到页（红色，填完直接入池）
     if (s.profile_required && !s.profile_complete && !CLAIM) {
-      location.replace('/entry');
+      location.replace('/profile');
       return;
     }
     // 抽奖入口：入场用户（未入池）打开即自动入池；领奖查询视图不触发

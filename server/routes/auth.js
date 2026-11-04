@@ -16,11 +16,10 @@ const authLimit = createRateLimiter(30, 60_000);
  *  entry 模式（入场签到）→ /entry.html（不进奖池）
  *  默认（抽奖签到）→ 资料未完善进资料页，否则参与页 */
 function postLoginRedirect(res, user, mode) {
-  if (mode === 'entry') return res.redirect('/entry');
+  if (mode === 'entry') return res.redirect('/entry'); // 入场签到 → 蓝色入场页
   const required = state.getSetting('profile_form_enabled', '1') === '1';
   const need = required && !(user.real_name && user.phone);
-  // v31：资料未完善统一走入场页（/entry），/profile 已退役
-  res.redirect(need ? '/entry' : '/');
+  res.redirect(need ? '/profile' : '/'); // 抽奖签到 → 红色抽奖页（或直接参与页）
 }
 
 /** 入场模式标记：签名 Cookie 传递过 OAuth 回调（10 分钟） */
