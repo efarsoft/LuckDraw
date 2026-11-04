@@ -6,8 +6,8 @@
   let enteringPool = false;
   const $ = (id) => document.getElementById(id);
 
-  // 领奖查询模式：?claim=1 进入；授权跳转前记忆，回来后自动恢复
-  let CLAIM = new URLSearchParams(location.search).get('claim') === '1';
+  // 领奖查询模式：/claim 或 ?claim=1 进入；授权跳转前记忆，回来后自动恢复
+  let CLAIM = location.pathname === '/claim' || new URLSearchParams(location.search).get('claim') === '1';
   if (CLAIM) sessionStorage.setItem('ld_claim', '1');
   else if (sessionStorage.getItem('ld_claim') === '1') CLAIM = true;
 
@@ -53,7 +53,7 @@
     version = s.v;
     // 资料未完善（且要求填写）→ 跳资料页
     if (s.profile_required && !s.profile_complete && !CLAIM) {
-      location.replace('/profile.html');
+      location.replace('/profile');
       return;
     }
     // 抽奖入口：入场用户（未入池）打开即自动入池；领奖查询视图不触发

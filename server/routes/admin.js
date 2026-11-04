@@ -275,7 +275,7 @@ router.get('/api/admin/users', requireAdmin, (req, res) => {
 router.get('/api/admin/qrcode', requireAdmin, async (req, res) => {
   const claim = req.query.claim === '1';
   const entry = req.query.entry === '1';
-  const url = claim ? entryUrl() + '/?claim=1' : entry ? entryUrl() + '/entry.html' : entryUrl();
+  const url = claim ? entryUrl() + '/claim' : entry ? entryUrl() + '/entry' : entryUrl();
   try {
     const dataUrl = await QRCode.toDataURL(url, { width: 480, margin: 2, color: { dark: '#5c0000', light: '#ffffff' } });
     res.json({ url, dataUrl });

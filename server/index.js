@@ -18,6 +18,25 @@ app.use(express.json({ limit: '200kb' }));
 app.use(express.urlencoded({ extended: false, limit: '200kb' }));
 app.use(cookieAuth(db));
 
+// ---- URL 规范化（须在 express.static 之前，否则 .html 会被静态直出而绕过） ----
+// 新地址：无后缀为主入口
+const PAGES = { '/screen': 'screen.html', '/admin': 'admin.html', '/entry': 'entry.html', '/profile': 'profile.html', '/claim': 'index.html' };
+for (const [clean, file] of Object.entries(PAGES)) {
+  app.get(clean, (req, res) => res.sendFile(path.join(config.PUBLIC_DIR, file)));
+}
+// 旧 .html 地址 301 → 无后缀（已印二维码/收藏夹不断链）
+app.use((req, res, next) => {
+  if (req.method === 'GET' && /\.html$/.test(req.path) && !req.path.startsWith('/api/')) {
+    const clean = req.path.replace(/\.html$/, '');
+    if (PAGES[clean]) return res.redirect(301, clean);
+  }
+  next();
+});
+// 本地节点：用户误访问 / 时引导去云端签到
+if (config.ROLE === 'local') {
+  app.get(['/', '/index.html'], (req, res) => res.redirect(config.CLOUD_PUBLIC_URL || '/screen'));
+}
+
 // 静态资源（本地化，无任何 CDN 依赖）
 app.use('/avatars', express.static(path.join(config.DATA_DIR, 'avatars'), { maxAge: '7d', immutable: true }));
 app.use('/uploads', express.static(path.join(config.DATA_DIR, 'uploads'), { maxAge: '7d', immutable: true }));
@@ -50,10 +69,6 @@ if (config.ROLE === 'cloud' || config.ROLE === 'standalone') {
   app.use(syncRoutes);          // 云端同步端点（standalone 下无害闲置）
 }
 
-// 本地节点：用户误访问 / 时引导去云端签到
-if (config.ROLE === 'local') {
-  app.get(['/', '/index.html'], (req, res) => res.redirect(config.CLOUD_PUBLIC_URL || '/screen.html'));
-}
 
 // ---- 开发/演示工具：批量假用户（Mock 模式或管理员会话） ----
 // 注意：local 节点用负数 id 造演示用户，避免与云端拉回的真实用户 id 冲突
