@@ -43,10 +43,9 @@ if (config.ROLE === 'cloud' || config.ROLE === 'standalone') {
   app.use(authRoutes); // 微信授权 / Mock 登录（用户入口）
   app.use(apiRoutes);  // 用户页轮询
 }
-if (config.ROLE === 'local' || config.ROLE === 'standalone') {
-  app.use(screenRoutes.router); // 大屏状态
-  app.use(adminRoutes);         // 管理台
-}
+// 大屏 + 管理台：本地/单机为主；云端也挂载（灾备模式——开奖写入由 cloud_draw_enabled 开关把守）
+app.use(screenRoutes.router);
+app.use(adminRoutes);
 if (config.ROLE === 'cloud' || config.ROLE === 'standalone') {
   app.use(syncRoutes);          // 云端同步端点（standalone 下无害闲置）
 }

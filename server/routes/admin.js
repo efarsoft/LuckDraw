@@ -27,6 +27,14 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+/** 云端灾备开关：云端默认禁止开奖类写入（公网安全），管理台可一键启用接管 */
+function requireCloudDrawEnabled(req, res, next) {
+  if (config.ROLE === 'cloud' && state.getSetting('cloud_draw_enabled', '0') !== '1') {
+    return res.status(403).json({ error: '云端备用开奖未启用：请在本页「活动设置」中开启「云端备用开奖」后接管' });
+  }
+  next();
+}
+
 /** 登录（下发 12 小时会话 Cookie） */
 router.post('/api/admin/login', loginLimit, (req, res) => {
   const { username, password } = req.body || {};
@@ -85,6 +93,7 @@ router.get('/api/admin/overview', requireAdmin, (req, res) => {
       profile_form_enabled: state.getSetting('profile_form_enabled', '1') === '1',
       group_reveal_threshold: parseInt(state.getSetting('group_reveal_threshold', '5'), 10) || 5,
       gift_note: state.getSetting('gift_note', ''),
+      cloud_draw_enabled: state.getSetting('cloud_draw_enabled', '0') === '1',
     },
     phase: state.getSetting('phase', 'idle'),
     current_round_id: currentRoundId,
@@ -101,7 +110,8 @@ router.get('/api/admin/overview', requireAdmin, (req, res) => {
 });
 
 router.put('/api/admin/activity', requireAdmin, (req, res) => {
-  const { title, subtitle, sign_in_enabled, profile_form_enabled, group_reveal_threshold, gift_note } = req.body || {};
+  const { title, subtitle, sign_in_enabled, profile_form_enabled, group_reveal_threshold, gift_note, cloud_draw_enabled } = req.body || {};
+  if (cloud_draw_enabled !== undefined) state.setSetting('cloud_draw_enabled', cloud_draw_enabled ? '1' : '0');
   if (title !== undefined) state.setSetting('activity_title', String(title).slice(0, 60));
   if (subtitle !== undefined) state.setSetting('activity_subtitle', String(subtitle).slice(0, 80));
   if (gift_note !== undefined) state.setSetting('gift_note', String(gift_note).slice(0, 100));
@@ -117,12 +127,12 @@ router.put('/api/admin/activity', requireAdmin, (req, res) => {
 });
 
 // ---- 轮次 ----
-router.post('/api/admin/rounds', requireAdmin, (req, res) => {
+router.post('/api/admin/rounds', requireAdmin, requireCloudDrawEnabled, (req, res) => {
   res.json(draw.createRound(req.body || {}));
 });
 
 /** 奖品图片上传（base64 dataURL，落盘 data/uploads/prizes，返回 /uploads URL；上限 5MB） */
-router.post('/api/admin/upload/prize', requireAdmin, (req, res) => {
+router.post('/api/admin/upload/prize', requireAdmin, requireCloudDrawEnabled, (req, res) => {
   const m = /^data:image\/(png|jpe?g|webp|gif);base64,(.+)$/.exec(String((req.body || {}).dataUrl || ''));
   if (!m) return res.status(400).json({ error: '仅支持 png/jpg/webp/gif 图片' });
   const buf = Buffer.from(m[2], 'base64');
@@ -135,18 +145,18 @@ router.post('/api/admin/upload/prize', requireAdmin, (req, res) => {
   fs.writeFileSync(path.join(dir, file), buf);
   res.json({ ok: true, url: `/uploads/prizes/${file}` });
 });
-router.put('/api/admin/rounds/:id', requireAdmin, (req, res) => {
+router.put('/api/admin/rounds/:id', requireAdmin, requireCloudDrawEnabled, (req, res) => {
   res.json(draw.updateRound(parseInt(req.params.id, 10), req.body || {}));
 });
-router.delete('/api/admin/rounds/:id', requireAdmin, (req, res) => {
+router.delete('/api/admin/rounds/:id', requireAdmin, requireCloudDrawEnabled, (req, res) => {
   draw.deleteRound(parseInt(req.params.id, 10));
   res.json({ ok: true });
 });
-router.post('/api/admin/rounds/:id/select', requireAdmin, (req, res) => {
+router.post('/api/admin/rounds/:id/select', requireAdmin, requireCloudDrawEnabled, (req, res) => {
   draw.selectRound(parseInt(req.params.id, 10));
   res.json({ ok: true });
 });
-router.post('/api/admin/phase', requireAdmin, (req, res) => {
+router.post('/api/admin/phase', requireAdmin, requireCloudDrawEnabled, (req, res) => {
   draw.setPhase(String((req.body || {}).phase || ''));
   res.json({ ok: true });
 });
@@ -155,7 +165,7 @@ router.post('/api/admin/phase', requireAdmin, (req, res) => {
  * 开奖：本地节点先强制拉取云端迟到签到（best-effort，断网则用当前奖池），
  * 再执行事务化抽取 —— 幂等，连点/重试安全。
  */
-router.post('/api/admin/rounds/:id/draw', requireAdmin, async (req, res, next) => {
+router.post('/api/admin/rounds/:id/draw', requireAdmin, requireCloudDrawEnabled, async (req, res, next) => {
   try {
     if (config.ROLE === 'local') await sync.forcePull();
     const result = draw.drawRound(parseInt(req.params.id, 10));
@@ -173,7 +183,7 @@ router.post('/api/admin/rounds/:id/draw', requireAdmin, async (req, res, next) =
 });
 
 /** 补抽：弃奖后补齐本轮有效名额 */
-router.post('/api/admin/rounds/:id/redraw', requireAdmin, async (req, res, next) => {
+router.post('/api/admin/rounds/:id/redraw', requireAdmin, requireCloudDrawEnabled, async (req, res, next) => {
   try {
     const result = draw.drawRound(parseInt(req.params.id, 10), { redraw: true });
     res.json({ ok: true, winners: result.winners.map((w) => ({ ...w, avatar: w.avatar ? `/avatars/${w.avatar}` : null })) });
@@ -182,18 +192,18 @@ router.post('/api/admin/rounds/:id/redraw', requireAdmin, async (req, res, next)
   }
 });
 
-router.post('/api/admin/winners/:id/void', requireAdmin, (req, res) => {
+router.post('/api/admin/winners/:id/void', requireAdmin, requireCloudDrawEnabled, (req, res) => {
   draw.voidWinner(parseInt(req.params.id, 10));
   res.json({ ok: true });
 });
 
-router.post('/api/admin/rounds/:id/rollback', requireAdmin, (req, res) => {
+router.post('/api/admin/rounds/:id/rollback', requireAdmin, requireCloudDrawEnabled, (req, res) => {
   draw.rollbackRound(parseInt(req.params.id, 10));
   res.json({ ok: true });
 });
 
 // ---- 用户管理（兜底名单） ----
-router.post('/api/admin/users/manual', requireAdmin, (req, res) => {
+router.post('/api/admin/users/manual', requireAdmin, requireCloudDrawEnabled, (req, res) => {
   const { name, note } = req.body || {};
   const n = String(name || '').trim();
   if (!n) return res.status(400).json({ error: '姓名不能为空' });
@@ -203,7 +213,7 @@ router.post('/api/admin/users/manual', requireAdmin, (req, res) => {
 });
 
 /** 批量导入：每行「姓名,手机尾号」或纯姓名 */
-router.post('/api/admin/users/import', requireAdmin, (req, res) => {
+router.post('/api/admin/users/import', requireAdmin, requireCloudDrawEnabled, (req, res) => {
   const text = String((req.body || {}).text || '');
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (!lines.length) return res.status(400).json({ error: '名单为空' });
@@ -225,7 +235,7 @@ router.post('/api/admin/users/import', requireAdmin, (req, res) => {
   res.json({ ok: true, added, errors });
 });
 
-router.post('/api/admin/users/:id/block', requireAdmin, (req, res) => {
+router.post('/api/admin/users/:id/block', requireAdmin, requireCloudDrawEnabled, (req, res) => {
   const blocked = !!((req.body || {}).blocked);
   const ok = usersSvc.setBlocked(parseInt(req.params.id, 10), blocked);
   if (!ok) return res.status(404).json({ error: '用户不存在' });
@@ -324,7 +334,7 @@ router.get('/api/admin/export/users', requireAdmin, (req, res) => {
 });
 
 /** 彩排重置：winners=只清中奖；all=清全部数据 */
-router.post('/api/admin/reset', requireAdmin, (req, res) => {
+router.post('/api/admin/reset', requireAdmin, requireCloudDrawEnabled, (req, res) => {
   const scope = String((req.body || {}).scope || '');
   if (scope === 'winners') {
     draw.resetWinners();

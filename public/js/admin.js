@@ -102,6 +102,9 @@
       $('inp-profile').checked = data.activity.profile_form_enabled !== false;
       $('inp-threshold').value = data.activity.group_reveal_threshold || 5;
       $('inp-gift').value = data.activity.gift_note || '';
+      // 云端灾备开关（仅云端角色显示）
+      $('lbl-cloud-draw').classList.toggle('hidden', data.role !== 'cloud');
+      $('inp-cloud-draw').checked = data.activity.cloud_draw_enabled === true;
       $('inp-title').dataset.hydrated = '1';
     }
     $('st-users').textContent = data.stats.users;
@@ -267,6 +270,7 @@
           profile_form_enabled: $('inp-profile').checked,
           group_reveal_threshold: parseInt($('inp-threshold').value, 10) || 5,
           gift_note: $('inp-gift').value.trim(),
+          cloud_draw_enabled: $('inp-cloud-draw').checked,
         }),
       '已保存'
     );
