@@ -469,6 +469,11 @@
   $('btn-reset-winners').onclick = () => {
     if (confirm('清空全部中奖记录（签到保留、轮次回到待抽）？')) act(() => call('POST', '/api/admin/reset', { scope: 'winners' }), '已清空中奖');
   };
+  $('btn-reset-people').onclick = () => {
+    if (confirm('清空签到用户与中奖记录（奖品轮次保留，人员需重新扫码）？')) {
+      act(() => call('POST', '/api/admin/reset', { scope: 'people' }), '已清空人员与中奖');
+    }
+  };
   $('btn-reset-all').onclick = () => {
     if (confirm('⚠ 清空全部数据（签到+轮次+中奖，不可恢复）？')) {
       if (confirm('再次确认：真的要清空全部数据？')) act(() => call('POST', '/api/admin/reset', { scope: 'all' }), '已全部清空');

@@ -352,6 +352,21 @@ router.post('/api/admin/reset', requireAdmin, (req, res) => {
     draw.resetWinners();
     return res.json({ ok: true });
   }
+  if (scope === 'people') {
+    // 清空人员与中奖，保留奖品轮次配置（彩排后常用：奖品不用重设，人员重新来）
+    db.transaction(() => {
+      db.prepare('DELETE FROM winners').run();
+      db.prepare('DELETE FROM users').run();
+      db.prepare(`UPDATE rounds SET status = 'pending', drawn_at = NULL`).run();
+      state.setSetting('phase', 'idle', { silent: true });
+      state.setSetting('current_round_id', '', { silent: true });
+      state.bumpVersion();
+    })();
+    state.setSyncState('pull_watermark', '0');
+    state.setSyncState('clear_users_flag', '1'); // 通知云端清空用户（不动云端轮次）
+    sync.markDirty();
+    return res.json({ ok: true });
+  }
   if (scope === 'all') {
     db.transaction(() => {
       db.prepare('DELETE FROM winners').run();
@@ -361,13 +376,13 @@ router.post('/api/admin/reset', requireAdmin, (req, res) => {
       state.setSetting('current_round_id', '', { silent: true });
       state.bumpVersion();
     })();
-    state.setSyncState('pull_watermark', '0'); // 清空拉取水位，避免云端残留用户回流复活
-    state.setSyncState('clear_users_flag', '1'); // 随下一次快照通知云端清空签到用户
-    state.setSyncState('clear_config_flag', '1'); // v25：轮次/配置归云端，全量重置需一并清云端配置
+    state.setSyncState('pull_watermark', '0');
+    state.setSyncState('clear_users_flag', '1');
+    state.setSyncState('clear_config_flag', '1');
     sync.markDirty();
     return res.json({ ok: true });
   }
-  res.status(400).json({ error: 'scope 必须是 winners|all' });
+  res.status(400).json({ error: 'scope 必须是 winners|people|all' });
 });
 
 module.exports = router;
