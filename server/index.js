@@ -20,7 +20,7 @@ app.use(cookieAuth(db));
 
 // ---- URL 规范化（须在 express.static 之前，否则 .html 会被静态直出而绕过） ----
 // 新地址：无后缀为主入口
-const PAGES = { '/screen': 'screen.html', '/admin': 'admin.html', '/entry': 'entry.html', '/profile': 'profile.html', '/claim': 'index.html' };
+const PAGES = { '/screen': 'screen.html', '/admin': 'admin.html', '/entry': 'entry.html', '/profile': 'profile.html', '/claim': 'index.html', '/hall': 'hall.html' };
 for (const [clean, file] of Object.entries(PAGES)) {
   app.get(clean, (req, res) => res.sendFile(path.join(config.PUBLIC_DIR, file)));
 }

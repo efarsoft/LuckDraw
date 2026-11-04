@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101b3d">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2720%27 fill=%27%23101b3d%27/%3E%3Ctext x=%2750%27 y=%2768%27 text-anchor=%27middle%27 font-size=%2748%27 fill=%27%23ffd700%27 font-family=%27serif%27 font-weight=%27bold%27%3E%E5%85%A5%3C/text%3E%3C/svg%3E">
+<title>入场成功</title>
+<link rel="stylesheet" href="/css/base.css?v=33">
+<style>
+body {
+  background: linear-gradient(168deg, #0a1230 0%, #14204d 55%, #1b2a66 100%) fixed;
+  color: #eef2ff;
+  font-family: var(--font-cn);
+}
+body::before { opacity: .5; }
+.page { position: relative; z-index: 1; max-width: 560px; margin: 0 auto; min-height: 100vh; padding: 30px 18px 44px; }
+header { text-align: center; padding: 12px 0 4px; }
+header h1 { font-size: 24px; font-weight: 900; color: #ffd76a; letter-spacing: .14em; text-shadow: 0 2px 12px rgba(0,0,0,.4); }
+header p { margin-top: 7px; color: rgba(238,242,255,.55); font-size: 12px; letter-spacing: .3em; }
+
+.done-card { margin-top: 18px; padding: 20px; border-radius: 18px; text-align: center; border: 1px solid rgba(255,215,106,.4); background: linear-gradient(160deg,#16224f,#0d1636); box-shadow: 0 14px 44px rgba(0,0,0,.5); }
+.done-card .big { font-size: 48px; }
+.done-card h2 { font-size: 20px; font-weight: 900; color: #ffd76a; margin: 10px 0 4px; letter-spacing: .15em; }
+.done-card .who { font-size: 14px; color: rgba(238,242,255,.75); }
+
+.pool-banner { margin-top: 14px; padding: 15px 17px; border-radius: 16px; display: flex; align-items: center; gap: 14px; border: 1.5px dashed rgba(255,215,106,.55); background: linear-gradient(140deg,rgba(255,215,106,.14),rgba(255,255,255,.03)); }
+.pool-banner.yes { border-color: rgba(124,252,152,.5); background: linear-gradient(140deg,rgba(124,252,152,.12),rgba(255,255,255,.04)); }
+.pb-icon { font-size: 30px; }
+.pb-state { font-size: 16px; font-weight: 900; color: #ffd76a; }
+.pool-banner.yes .pb-state { color: #9fe8a9; }
+.pb-sub { font-size: 12px; color: rgba(238,242,255,.72); margin-top: 3px; line-height: 1.6; }
+.pb-sub b { color: #ffd76a; }
+
+.steps { margin-top: 12px; padding: 13px 16px; border-radius: 14px; border: 1px dashed rgba(255,215,106,.4); background: rgba(0,0,0,.2); display: flex; gap: 12px; align-items: center; font-size: 12.5px; color: rgba(238,242,255,.85); }
+.steps .s { flex: 1; text-align: center; line-height: 1.7; }
+.steps .s b { display: block; font-size: 15px; color: #ffd76a; }
+.steps .arrow { color: rgba(255,215,106,.6); font-size: 18px; }
+
+.prizes { margin-top: 20px; }
+.prizes h2 { font-size: 15px; color: #ffd76a; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.prize-item { display: flex; align-items: center; gap: 13px; padding: 13px 14px; margin-bottom: 9px; border-radius: 14px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,215,106,.22); }
+.prize-item.done { opacity: .55; }
+.prize-seq { width: 40px; height: 40px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 16px; color: #14204d; background: linear-gradient(135deg,#ffd76a,#f5a623); }
+.prize-thumb { width: 44px; height: 44px; flex: none; border-radius: 10px; object-fit: cover; border: 1px solid rgba(255,215,106,.4); }
+.prize-main { flex: 1; min-width: 0; }
+.prize-name { font-size: 15px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prize-meta { font-size: 11.5px; color: rgba(238,242,255,.6); margin-top: 3px; }
+.prize-state { font-size: 12px; font-weight: 700; flex: none; }
+.prize-state.wait { color: rgba(238,242,255,.5); }
+.prize-state.live { color: #ffe066; animation: blink 1.3s infinite; }
+.prize-state.done { color: #9fe8a9; }
+@keyframes blink { 50% { opacity: .35; } }
+
+.foot { text-align: center; margin-top: 32px; color: rgba(238,242,255,.35); font-size: 12px; letter-spacing: .2em; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1 id="act-title">活动</h1>
+    <p id="act-subtitle"></p>
+  </header>
+
+  <section class="done-card">
+    <div class="big">🎫</div>
+    <h2>入场成功</h2>
+    <div class="who" id="who"></div>
+  </section>
+
+  <section id="pool-banner" class="pool-banner">
+    <div class="pb-icon" id="pb-icon">⏳</div>
+    <div>
+      <div class="pb-state" id="pb-state">未参与抽奖</div>
+      <div class="pb-sub" id="pb-sub"></div>
+    </div>
+  </section>
+
+  <div class="steps" id="steps">
+    <div class="s"><b>① 入场登记</b>扫码登记资料<br>✅ 已完成</div>
+    <div class="arrow">›</div>
+    <div class="s"><b>② 扫码抽奖</b>抽奖环节开始后<br>扫<b style="display:inline;color:#ffd76a">大屏幕二维码</b>参与</div>
+  </div>
+
+  <section class="prizes">
+    <h2><span>🎁</span> 本场奖品</h2>
+    <div id="prizes-list"></div>
+  </section>
+
+  <footer class="foot">祝您参会愉快</footer>
+</div>
+
+<script src="/js/http.js?v=33"></script>
+<script src="/js/confetti.js?v=33"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  let version = 0;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function render(s) {
+    version = s.v;
+    $('act-title').textContent = s.activity.title || '';
+    $('act-subtitle').textContent = s.activity.subtitle || '';
+
+    const name = s.me && (s.me.real_name || s.me.nickname) || '';
+    const phone = s.me && s.me.phone ? s.me.phone.slice(0,3) + '****' + s.me.phone.slice(-4) : '';
+    $('who').textContent = (name + (phone ? ' · ' + phone : '')).trim() || '已完成入场登记';
+
+    const banner = $('pool-banner');
+    if (s.in_pool) {
+      banner.classList.add('yes');
+      $('pb-icon').textContent = '🎉';
+      $('pb-state').textContent = '已参与抽奖';
+      $('pb-sub').innerHTML = '已进入奖池，坐等好运降临<br>开奖结果将实时同步到此页面';
+      $('steps').classList.add('hidden');
+    } else {
+      banner.classList.remove('yes');
+      $('pb-icon').textContent = '⏳';
+      $('pb-state').textContent = '未参与抽奖';
+      $('pb-sub').innerHTML = '抽奖环节开始后，请扫描<b>大屏幕上的二维码</b>参与<br>已登记资料将自动带出，无需重复填写';
+      $('steps').classList.remove('hidden');
+    }
+
+    const box = $('prizes-list');
+    box.innerHTML = '';
+    const rounds = s.rounds || [];
+    if (!rounds.length) box.innerHTML = '<div style="text-align:center;color:rgba(238,242,255,.5);font-size:13px;padding:14px">奖品清单即将公布，敬请期待</div>';
+    for (const r of rounds) {
+      const el = document.createElement('div');
+      const isLive = s.phase === 'rolling' && s.current_round_id === r.id;
+      let stateTxt, cls;
+      if (r.status === 'drawn') { stateTxt = '已开出'; cls = 'done'; }
+      else if (isLive) { stateTxt = '抽奖中'; cls = 'live'; }
+      else { stateTxt = '待开'; cls = 'wait'; }
+      el.className = 'prize-item' + (r.status === 'drawn' ? ' done' : '');
+      el.innerHTML = `
+        <div class="prize-seq">${r.seq}</div>
+        ${r.prize_image ? `<img class="prize-thumb" src="${esc(r.prize_image)}" onerror="this.remove()" alt="">` : ''}
+        <div class="prize-main">
+          <div class="prize-name">${esc(r.prize_name)}</div>
+          <div class="prize-meta">${esc(r.name)} · 名额 ${r.winner_count} 人</div>
+        </div>
+        <div class="prize-state ${cls}">${stateTxt}</div>`;
+      box.appendChild(el);
+    }
+  }
+
+  async function poll() {
+    try {
+      const { status, data } = await http.get(`/api/me/state?v=${version}&wait=20000`, { retries: 1, timeoutMs: 26000 });
+      if (status === 200 && data) render(data);
+    } catch (e) {
+      if (e.status === 401) { location.replace('/entry'); return; }
+      await new Promise(r => setTimeout(r, 3000));
+    }
+    setTimeout(poll, 500);
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+
+  poll();
+  confetti.burst(innerWidth / 2, innerHeight / 2.6, { count: 60, speed: 9, lift: 6 });
+})();
+</script>
+</body>
+</html>

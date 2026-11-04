@@ -301,8 +301,8 @@ header p { margin-top: 7px; color: rgba(238,242,255,.55); font-size: 12px; lette
     $('pf-submit').disabled = true;
     try {
       await http.post('/api/me/profile', { real_name: name, phone, dept });
-      const { data } = await http.get('/api/me/state?v=0&wait=1', { retries: 1 });
-      render(data); // 原地切换到"入场成功+奖品橱窗"，停在蓝色页面
+      location.replace("/hall");
+      // 填完 → 跳蓝色等候大厅
       confetti.burst(innerWidth / 2, innerHeight / 2.6, { count: 50, speed: 8, lift: 6 });
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
     } catch (e) {
