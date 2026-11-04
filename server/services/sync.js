@@ -212,6 +212,7 @@ async function pushOnce({ heartbeatOnly = false } = {}) {
     if (snapshot.clear_config) state.setSyncState('clear_config_flag', '0');
     state.setSyncState('last_push_ok_at', String(Date.now()));
     state.setSyncState('last_error', '');
+    syncAvatars().catch(() => {}); // 补录用户头像补传云端（防 404）
   } catch (e) {
     state.setSyncState('dirty', '1'); // 失败回滚脏标，等待重试
     throw e;
@@ -260,6 +261,9 @@ function start() {
   }, config.SYNC_PULL_INTERVAL_MS);
   pullTimer.unref?.();
 
+  // 启动 8 秒后做一次补录头像上传（进程内集合记忆，只传缺的）
+  setTimeout(() => syncAvatars().catch(() => {}), 8000);
+
   pushTimer = setInterval(async () => {
     // 失败退避：连续失败时降低尝试频率，封顶 30s
     if (Date.now() - lastPushAttempt < backoffMs - 500) return;
@@ -277,6 +281,32 @@ function start() {
   pushTimer.unref?.();
 }
 
+/** 补录/种子用户头像上传云端（这些文件只在本地磁盘，云端缺文件会 404）。
+ *  进程内记忆已上传集合，避免重复传；推送成功后与手动同步时执行。 */
+const uploadedAvatars = new Set();
+async function syncAvatars() {
+  const manual = db.prepare('SELECT avatar FROM users WHERE id < 0 AND avatar IS NOT NULL').all();
+  const todo = manual.map((u) => u.avatar).filter((f) => f && !uploadedAvatars.has(f));
+  let okCount = 0; // 统计真实成功数（云端旧版本无端点时会如实报 0）
+  for (const file of todo) {
+    const p = path.join(avatarLib.AVATAR_DIR, file);
+    if (!fs.existsSync(p)) continue;
+    const buf = fs.readFileSync(p);
+    const dataUrl = `data:image/${file.endsWith('.svg') ? 'svg+xml' : file.endsWith('.png') ? 'png' : 'jpeg'};base64,${buf.toString('base64')}`;
+    try {
+      const resp = await fetchWithTimeout(
+        `${config.CLOUD_URL}/api/sync/avatar`,
+        { method: 'POST', headers: pairHeaders, body: JSON.stringify({ file, dataUrl }) },
+        8000
+      );
+      if (resp.ok) { uploadedAvatars.add(file); okCount++; }
+    } catch {
+      /* 下轮再试 */
+    }
+  }
+  return okCount;
+}
+
 /** 操作员手动「立即同步」：强制拉取 + 有脏标则立即推送，返回明细 */
 async function syncNow() {
   if (config.ROLE !== 'local') {
@@ -288,7 +318,8 @@ async function syncNow() {
     await pushOnce();
     pushed = true;
   }
-  return { ok: true, pulled_new_users: pulled, pushed_snapshot: pushed, status: status() };
+  const avatars = await syncAvatars();
+  return { ok: true, pulled_new_users: pulled, pushed_snapshot: pushed, uploaded_avatars: avatars, status: status() };
 }
 
-module.exports = { markDirty, pullOnce, pushOnce, forcePull, syncNow, status, start };
+module.exports = { markDirty, pullOnce, pushOnce, forcePull, syncNow, syncAvatars, status, start };

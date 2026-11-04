@@ -111,4 +111,21 @@ router.post('/api/sync/heartbeat', requirePair, (req, res) => {
   res.json({ ok: true });
 });
 
+/** 接收本地上传的头像文件（补录/种子用户的本地生成头像，云端磁盘没有 → 404 的根治） */
+router.post('/api/sync/avatar', requirePair, (req, res) => {
+  const { file, dataUrl } = req.body || {};
+  if (!/^[\w.-]+\.(svg|png|jpe?g|webp)$/.test(String(file || ''))) {
+    return res.status(400).json({ error: 'invalid file name' });
+  }
+  const m = /^data:image\/(svg\+xml|png|jpe?g|webp);base64,(.+)$/.exec(String(dataUrl || ''));
+  if (!m) return res.status(400).json({ error: 'invalid dataUrl' });
+  const buf = Buffer.from(m[2], 'base64');
+  if (buf.length === 0 || buf.length > 2 * 1024 * 1024) return res.status(400).json({ error: 'bad size' });
+  const fs = require('fs');
+  const path = require('path');
+  fs.mkdirSync(avatarLib.AVATAR_DIR, { recursive: true });
+  fs.writeFileSync(path.join(avatarLib.AVATAR_DIR, file), buf);
+  res.json({ ok: true });
+});
+
 module.exports = router;
