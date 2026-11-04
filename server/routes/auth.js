@@ -49,12 +49,17 @@ function readAuthMode(req) {
 router.get('/auth/wechat', authLimit, (req, res) => {
   const mode = req.query.mode === 'entry' ? 'entry' : req.query.mode === 'claim' ? 'claim' : null;
   if (wechat.isMock()) return res.redirect('/auth/mock' + (mode ? `?mode=${mode}` : ''));
-  setAuthMode(res, mode);
+  // 两个 Cookie 合并一次性下发（setHeader 会覆盖前值，分两次设会丢 ld_mode）
   const stateVal = crypto.randomBytes(8).toString('hex');
-  res.setHeader(
-    'Set-Cookie',
-    `ld_oauth_state=${sign(stateVal)}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=600`
-  );
+  const cookies = [
+    `ld_oauth_state=${sign(stateVal)}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=600`,
+  ];
+  if (mode) {
+    cookies.push(`ld_mode=${sign(mode)}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=600`);
+  } else {
+    cookies.push(`ld_mode=; Path=/auth; HttpOnly; SameSite=Lax; Max-Age=0`);
+  }
+  res.setHeader('Set-Cookie', cookies);
   res.redirect(wechat.authorizeUrl(`${config.BASE_URL}/auth/wechat/callback`, stateVal));
 });
 
