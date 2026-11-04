@@ -22,7 +22,10 @@ let pushFailCount = 0;
 let heartbeatDue = 0;
 let immediatePush = null;     // markDirty 触发的立即推送（去抖）
 
-const OWNED_SETTINGS = ['activity_title', 'activity_subtitle', 'sign_in_enabled', 'current_round_id', 'phase', 'group_reveal_threshold', 'gift_note'];
+// v25 架构（云端优先）：配置与用户归云端，本地只拥有「运行态」——执行方写入
+const OWNED_SETTINGS = ['current_round_id', 'phase'];
+// 云端拥有、随拉取回流本地的设置键
+const CLOUD_OWNED_SETTINGS = ['activity_title', 'activity_subtitle', 'profile_form_enabled', 'sign_in_enabled', 'group_reveal_threshold', 'gift_note'];
 
 function markDirty() {
   try {
@@ -64,6 +67,8 @@ async function pullOnce() {
 
   let newCount = 0;
   let changed = false;
+
+  // ① 用户（增量：新用户 + 入池/资料变更）
   let maxId = since;
   for (const u of data.users || []) {
     const r = db.transaction(() => require('./users').upsertPulledUser(u))();
@@ -73,10 +78,39 @@ async function pullOnce() {
   }
   state.setSyncState('pull_watermark', String(maxId));
   state.setSyncState('pull_ts', String(data.server_time || Date.now()));
-  if (changed) state.bumpVersion(); // 新签到或入池变更 → 大屏/管理台刷新
-  return newCount;
 
-  // 头像文件落盘（缺失才拉，失败落回本地 SVG 兜底）
+  // ② 奖品/轮次配置（云端为主，全量替换；本地不再编辑轮次）
+  if (Array.isArray(data.rounds) && data.rounds.length >= 0) {
+    db.transaction(() => {
+      db.prepare('DELETE FROM rounds').run();
+      const ins = db.prepare(
+        `INSERT INTO rounds(id, seq, name, prize_name, prize_image, winner_count, status, created_at, drawn_at)
+         VALUES(?,?,?,?,?,?,?,?,?)`
+      );
+      for (const r of data.rounds) {
+        ins.run(r.id, r.seq, r.name, r.prize_name, r.prize_image || null, r.winner_count, r.status, r.created_at, r.drawn_at || null);
+      }
+      // 本地已开出结果的轮次，以本地结果为准（推送回写云端前的过渡一致性）
+      db.prepare(
+        `UPDATE rounds SET status='drawn',
+           drawn_at=COALESCE(drawn_at,(SELECT MAX(won_at) FROM winners w WHERE w.round_id=rounds.id))
+         WHERE id IN (SELECT DISTINCT round_id FROM winners)`
+      ).run();
+    })();
+    changed = true;
+  }
+
+  // ③ 云端拥有的活动设置
+  if (data.settings) {
+    for (const k of CLOUD_OWNED_SETTINGS) {
+      if (data.settings[k] !== undefined && state.getSetting(k, null) !== data.settings[k]) {
+        state.setSetting(k, data.settings[k], { silent: true });
+        changed = true;
+      }
+    }
+  }
+
+  // ④ 头像文件落盘（缺失才拉，失败落回本地 SVG 兜底）
   const updAvatar = db.prepare('UPDATE users SET avatar = ? WHERE id = ?');
   for (const u of data.users || []) {
     if (!u.avatar) continue;
@@ -105,6 +139,7 @@ async function pullOnce() {
     }
   }
 
+  if (changed) state.bumpVersion(); // 配置/用户变化 → 大屏与管理台刷新
   state.setSyncState('last_pull_ok_at', String(Date.now()));
   state.setSyncState('last_error', '');
   return newCount;
@@ -131,14 +166,14 @@ async function pushOnce({ heartbeatOnly = false } = {}) {
   // 推送飞行途中若有新变更（如开奖），其 markDirty 会重新置 1，不会被本次成功回执清掉 —— 杜绝 lost-update。
   state.setSyncState('dirty', '0');
 
-  const rounds = db.prepare('SELECT * FROM rounds ORDER BY id').all();
+  // v25：本地只上传统治数据——中奖结果 / 补录用户 / 运行态（当前轮+相位）
+  // 奖品轮次与活动配置归云端（本地拉取回流），不再随推送覆盖
   const winners = db.prepare('SELECT * FROM winners ORDER BY id').all();
   const manualUsers = db.prepare(`SELECT * FROM users WHERE id < 0`).all();
   const settings = {};
   for (const k of OWNED_SETTINGS) settings[k] = state.getSetting(k);
   const snapshot = {
     beat_at: Date.now(),
-    rounds,
     winners,
     manual_users: manualUsers,
     settings,

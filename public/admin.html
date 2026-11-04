@@ -61,10 +61,11 @@
     <section class="panel card">
       <h3>🎁 奖品轮次管理 <span id="phase-badge" class="badge gray">idle</span></h3>
       <div class="draw-flow">
-        <span class="flow-tip">开奖操作在<b>大屏页面</b>进行（选轮 → 滚动 → 揭晓）；本页负责配置奖品轮次与管理中奖记录（弃奖/补抽/回滚）。</span>
+        <span class="flow-tip" id="flow-tip-text">开奖操作在<b>大屏页面</b>进行（选轮 → 滚动 → 揭晓）；本页负责配置奖品轮次与管理中奖记录（弃奖/补抽/回滚）。</span>
+        <span class="flow-tip hidden" id="cfg-hint">☁️ <b>云端优先模式</b>：活动与奖品配置已上收云端（登录云端管理台修改，本页 3 秒内自动同步）；本节点负责现场开奖与中奖记录管理。</span>
       </div>
       <div id="rounds-list" class="rounds-list"></div>
-      <div class="new-round card">
+      <div class="new-round card" id="new-round-box">
         <h4>➕ 新建轮次</h4>
         <div class="form-grid">
           <label>顺序 <input id="nr-seq" type="number" min="1" placeholder="自动"></label>

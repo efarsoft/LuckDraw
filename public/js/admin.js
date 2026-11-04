@@ -107,6 +107,14 @@
       $('inp-cloud-draw').checked = data.activity.cloud_draw_enabled === true;
       $('inp-title').dataset.hydrated = '1';
     }
+    // v25 云端优先：本地节点 = 执行端，配置只读（改配置请去云端管理台）
+    const isLocal = data.role === 'local';
+    document.body.classList.toggle('role-local', isLocal);
+    ['inp-title', 'inp-subtitle', 'inp-signin', 'inp-profile', 'inp-threshold', 'inp-gift'].forEach((id) => { $(id).disabled = isLocal; });
+    $('btn-save-activity').classList.toggle('hidden', isLocal);
+    $('cfg-hint').classList.toggle('hidden', !isLocal);
+    $('flow-tip-text').classList.toggle('hidden', isLocal);
+    $('new-round-box').classList.toggle('hidden', isLocal);
     $('st-users').textContent = data.stats.users;
     $('st-pool').textContent = data.stats.pool;
     $('st-won').textContent = data.stats.won;
@@ -146,10 +154,10 @@
           <span class="rc-meta">名额 ${r.winner_count} · ${r.status === 'drawn' ? '已开出 ' + ws.filter(w => w.status === 'valid').length + ' 人' : '待抽'}</span>
           <span class="rc-actions">
             ${r.id === data.current_round_id ? '<span class="badge gold">大屏当前</span>' : ''}
-            <button class="btn ghost small" data-edit="${r.id}">✏️编辑</button>
+            ${data.role !== 'local' ? `<button class="btn ghost small" data-edit="${r.id}">✏️编辑</button>` : ''}
             ${r.status === 'drawn' ? `<button class="btn ghost small" data-redraw="${r.id}" title="补齐有效名额">➕补抽</button>` : ''}
             ${r.status === 'drawn' ? `<button class="btn ghost small" data-rollback="${r.id}" title="整轮作废重抽">↩回滚</button>` : ''}
-            <button class="btn danger small" data-del="${r.id}">删</button>
+            ${data.role !== 'local' ? `<button class="btn danger small" data-del="${r.id}">删</button>` : ''}
           </span>
         </div>
         ${chips ? `<div class="rc-winners">${chips}</div>` : ''}`;

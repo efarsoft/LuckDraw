@@ -35,6 +35,14 @@ function requireCloudDrawEnabled(req, res, next) {
   next();
 }
 
+/** v25 云端优先：配置（活动/奖品轮次）只在云端与单机可改，本地节点为执行端 */
+function requireConfigMaster(req, res, next) {
+  if (config.ROLE === 'local') {
+    return res.status(403).json({ error: '配置已上收云端：请登录云端管理台（activity.域名/admin.html）修改活动与奖品' });
+  }
+  next();
+}
+
 /** 登录（下发 12 小时会话 Cookie） */
 router.post('/api/admin/login', loginLimit, (req, res) => {
   const { username, password } = req.body || {};
@@ -109,7 +117,7 @@ router.get('/api/admin/overview', requireAdmin, (req, res) => {
   });
 });
 
-router.put('/api/admin/activity', requireAdmin, (req, res) => {
+router.put('/api/admin/activity', requireAdmin, requireConfigMaster, (req, res) => {
   const { title, subtitle, sign_in_enabled, profile_form_enabled, group_reveal_threshold, gift_note, cloud_draw_enabled } = req.body || {};
   if (cloud_draw_enabled !== undefined) state.setSetting('cloud_draw_enabled', cloud_draw_enabled ? '1' : '0');
   if (title !== undefined) state.setSetting('activity_title', String(title).slice(0, 60));
@@ -127,12 +135,12 @@ router.put('/api/admin/activity', requireAdmin, (req, res) => {
 });
 
 // ---- 轮次 ----
-router.post('/api/admin/rounds', requireAdmin, requireCloudDrawEnabled, (req, res) => {
+router.post('/api/admin/rounds', requireAdmin, requireConfigMaster, (req, res) => {
   res.json(draw.createRound(req.body || {}));
 });
 
 /** 奖品图片上传（base64 dataURL，落盘 data/uploads/prizes，返回 /uploads URL；上限 5MB） */
-router.post('/api/admin/upload/prize', requireAdmin, requireCloudDrawEnabled, (req, res) => {
+router.post('/api/admin/upload/prize', requireAdmin, requireConfigMaster, (req, res) => {
   const m = /^data:image\/(png|jpe?g|webp|gif);base64,(.+)$/.exec(String((req.body || {}).dataUrl || ''));
   if (!m) return res.status(400).json({ error: '仅支持 png/jpg/webp/gif 图片' });
   const buf = Buffer.from(m[2], 'base64');
@@ -145,10 +153,10 @@ router.post('/api/admin/upload/prize', requireAdmin, requireCloudDrawEnabled, (r
   fs.writeFileSync(path.join(dir, file), buf);
   res.json({ ok: true, url: `/uploads/prizes/${file}` });
 });
-router.put('/api/admin/rounds/:id', requireAdmin, requireCloudDrawEnabled, (req, res) => {
+router.put('/api/admin/rounds/:id', requireAdmin, requireConfigMaster, (req, res) => {
   res.json(draw.updateRound(parseInt(req.params.id, 10), req.body || {}));
 });
-router.delete('/api/admin/rounds/:id', requireAdmin, requireCloudDrawEnabled, (req, res) => {
+router.delete('/api/admin/rounds/:id', requireAdmin, requireConfigMaster, (req, res) => {
   draw.deleteRound(parseInt(req.params.id, 10));
   res.json({ ok: true });
 });

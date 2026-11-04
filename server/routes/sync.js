@@ -1,6 +1,5 @@
 'use strict';
 const express = require('express');
-const crypto = require('crypto');
 const config = require('../config');
 const db = require('../db');
 const state = require('../services/state');
@@ -8,10 +7,10 @@ const usersSvc = require('../services/users');
 const avatarLib = require('../lib/avatar');
 
 /**
- * 云端侧同步端点（PAIR_KEY 鉴权）：
- *  - GET  /api/sync/pull       本地节点增量拉取签到用户（数据回流）
+ * 云端侧同步端点（PAIR_KEY 鉴权）—— v25 云端优先架构：
+ *  - GET  /api/sync/pull       本地节点增量拉取：用户（含变更）+ 奖品轮次 + 活动设置（配置回流）
  *  - GET  /api/sync/avatar     拉取已落盘的头像文件
- *  - POST /api/sync/push       接收本地快照（rounds/winners/手动用户/设置），幂等全量应用
+ *  - POST /api/sync/push       接收本地执行结果：中奖/补录用户/运行态（当前轮+相位），幂等应用
  *  - POST /api/sync/heartbeat  心跳，供手机端展示数据新鲜度
  */
 const router = express.Router();
@@ -22,6 +21,11 @@ function requirePair(req, res, next) {
   next();
 }
 
+// 云端拥有、随拉取回流本地的设置键（本地推送不再携带这些，防覆盖）
+const CLOUD_CONFIG_KEYS = ['activity_title', 'activity_subtitle', 'profile_form_enabled', 'sign_in_enabled', 'group_reveal_threshold', 'gift_note'];
+// 本地执行端拥有、随推送上报的运行态键
+const LOCAL_RUNTIME_KEYS = ['current_round_id', 'phase'];
+
 router.get('/api/sync/pull', requirePair, (req, res) => {
   const since = parseInt(req.query.since_id || '0', 10) || 0;
   const sinceTs = parseInt(req.query.since_ts || '0', 10) || 0;
@@ -31,7 +35,10 @@ router.get('/api/sync/pull', requirePair, (req, res) => {
        WHERE id > 0 AND (id > ? OR updated_at > ?) ORDER BY id ASC LIMIT 500`
     )
     .all(since, sinceTs);
-  res.json({ users, server_time: Date.now() });
+  const rounds = db.prepare('SELECT * FROM rounds ORDER BY id').all();
+  const settings = {};
+  for (const k of CLOUD_CONFIG_KEYS) settings[k] = state.getSetting(k);
+  res.json({ users, rounds, settings, server_time: Date.now() });
 });
 
 router.get('/api/sync/avatar', requirePair, (req, res) => {
@@ -44,33 +51,25 @@ router.get('/api/sync/avatar', requirePair, (req, res) => {
   res.send(buf);
 });
 
-const OWNED_KEYS = ['activity_title', 'activity_subtitle', 'sign_in_enabled', 'current_round_id', 'phase', 'group_reveal_threshold', 'gift_note'];
-
 router.post('/api/sync/push', requirePair, (req, res) => {
   const snap = req.body || {};
-  if (!Array.isArray(snap.rounds) || !Array.isArray(snap.winners)) {
+  if (!Array.isArray(snap.winners)) {
     return res.status(400).json({ error: '快照格式错误' });
   }
   db.transaction(() => {
-    // 全量替换本地-owned 实体（数据量小，幂等且能正确处理回滚/删除）
-    db.prepare('DELETE FROM rounds').run();
+    // 中奖结果全量替换（幂等，回滚/删除也能正确同步）
     db.prepare('DELETE FROM winners').run();
-    const insRound = db.prepare(
-      `INSERT INTO rounds(id, seq, name, prize_name, prize_image, winner_count, status, created_at, drawn_at)
-       VALUES(?,?,?,?,?,?,?,?,?)`
-    );
-    for (const r of snap.rounds) {
-      insRound.run(
-        r.id, r.seq, r.name, r.prize_name, r.prize_image || null, r.winner_count,
-        r.status, r.created_at, r.drawn_at || null
-      );
-    }
-    const insWinner = db.prepare(
-      `INSERT INTO winners(id, round_id, user_id, status, won_at) VALUES(?,?,?,?,?)`
-    );
+    const insWinner = db.prepare(`INSERT INTO winners(id, round_id, user_id, status, won_at) VALUES(?,?,?,?,?)`);
     for (const w of snap.winners) {
       insWinner.run(w.id, w.round_id, w.user_id, w.status, w.won_at);
     }
+    // 由结果推导轮次状态（云端不重复执行开奖逻辑，以本地结果为准）
+    db.prepare(`UPDATE rounds SET status = 'pending', drawn_at = NULL`).run();
+    db.prepare(
+      `UPDATE rounds SET status = 'drawn', drawn_at = (SELECT MAX(won_at) FROM winners w WHERE w.round_id = rounds.id)
+       WHERE id IN (SELECT DISTINCT round_id FROM winners)`
+    ).run();
+
     if (snap.clear_users) {
       db.prepare('DELETE FROM users').run(); // 本地全量重置 → 云端签到与补录用户同步清空
     } else {
@@ -80,7 +79,7 @@ router.post('/api/sync/push', requirePair, (req, res) => {
       usersSvc.upsertManualUser(u);
     }
     const settings = snap.settings || {};
-    for (const k of OWNED_KEYS) {
+    for (const k of LOCAL_RUNTIME_KEYS) {
       if (settings[k] !== undefined) state.setSetting(k, settings[k], { silent: true });
     }
     state.setSetting('cloud_last_beat', String(snap.beat_at || Date.now()), { silent: true });
