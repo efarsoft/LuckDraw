@@ -29,7 +29,7 @@ npm start            # 默认 ROLE=standalone + Mock 登录，端口 3000
 - 管理台:  http://localhost:3000/admin.html （密钥默认 `change-me-admin-key`，来自 .env）
 - 一键造演示数据（60 用户 + 3 轮次）: `node scripts/demo-seed.js`
 
-彩排全流程：**管理台**建轮次/传奖品图 → **大屏页**控制条开奖（首次点按提示输入 ADMIN_KEY 授权，之后 `←/→` 切轮、`空格/回车` 一键 开始滚动→揭晓→下一轮）→ 需要修正时回管理台弃奖/补抽/回滚 → 清空中奖记录再来一遍。
+彩排全流程：**管理台**建轮次/传奖品图 → **大屏页**控制条开奖（首次点按提示登录管理员账号，之后 `←/→` 切轮、`空格/回车` 一键 开始滚动→揭晓→下一轮）→ 需要修正时回管理台弃奖/补抽/回滚 → 清空中奖记录再来一遍。
 
 > 职责分工：**大屏 = 开奖现场**（选轮、滚动、揭晓全在大屏页面操作）；**管理台 = 幕后**（奖品轮次配置、中奖记录管理、名单兜底、数据重置）。
 
@@ -49,22 +49,48 @@ npm start            # 默认 ROLE=standalone + Mock 登录，端口 3000
 
 ## 正式活动部署（云端 + 本地双节点）
 
+> 仓库：https://github.com/efarsoft/LuckDraw.git
+> 更新一律走 git，不再使用压缩包上传。
+
+**服务器日常更新（固定流程，勿用 1Panel 面板「重建」——它不重新构建镜像）：**
+```bash
+cd /opt/projects/activity && git fetch origin && git reset --hard origin/master
+docker compose build --no-cache && docker compose up -d
+curl -s https://<域名>/api/health
+```
+
+**已有解压版代码的服务器，一次性转换为 git 管理**（`.env` 和 `data/` 原样保留）：
+```bash
+cd /opt/projects/activity
+git init && git remote add origin https://github.com/efarsoft/LuckDraw.git
+git fetch origin && git reset --hard origin/master
+# 之后按上面的日常更新流程走
+```
+
+**全新服务器**：
+```bash
+git clone https://github.com/efarsoft/LuckDraw.git
+cp .env.example .env && vim .env     # 按下面两节配置
+# Docker：docker compose build && docker compose up -d
+# 裸机：npm ci && npm i -g pm2 && pm2 start server/index.js --name luckydraw
+```
+
 ### 1) 云端节点（公网服务器）
 
-```bash
+```ini
 # .env
 ROLE=cloud
 PORT=3000
 BASE_URL=https://draw.example.com        # 已备案域名 + HTTPS
 PAIR_KEY=<随机长串>
-ADMIN_KEY=<随机长串>
+ADMIN_USER=admin
+ADMIN_PASSWORD=<随机密码>                # 管理台/大屏开奖授权登录用
 USE_MOCK=0
 WECHAT_APP_ID=wx1234567890
 WECHAT_APP_SECRET=<公众号后台获取>
 ```
 
-用 pm2 常驻：`npm i -g pm2 && pm2 start server/index.js --name luckydraw-cloud`
-（HTTPS 由 Nginx/Caddy 反代终止，证书需覆盖该域名）
+（HTTPS 由 Nginx/OpenResty 反代终止，证书需覆盖该域名）
 
 ### 2) 本地节点（现场笔记本）
 
@@ -75,14 +101,15 @@ PORT=3000
 CLOUD_URL=https://draw.example.com      # 云端 API 地址
 CLOUD_PUBLIC_URL=https://draw.example.com
 PAIR_KEY=<与云端一致>
-ADMIN_KEY=<随机长串>
+ADMIN_USER=admin
+ADMIN_PASSWORD=<随机密码>
 ```
 
 `pm2 start server/index.js --name luckydraw-local`（或直接 `npm start`）
 投影仪浏览器开 `http://<笔记本IP>:3000/screen.html` 按 F 全屏；操作机开 `/admin.html`。
 
 > 手机与云端之间走蜂窝网络即可；笔记本与现场外网之间断不断都**不影响开奖**。
-> 建议：会前在云端 `/dev/seed?n=1` 冒烟（USE_MOCK=0 时需带 ADMIN_KEY），然后 reset all 清掉。
+> 建议：会前在云端 `/dev/seed?n=1` 冒烟（USE_MOCK=0 时需管理员登录），然后 reset all 清掉。
 
 ### 3) 网络兜底手段（按优先级）
 
