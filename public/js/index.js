@@ -24,18 +24,34 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  // ---------- 未入池提示横幅 ----------
+  // ---------- 未入池提示横幅（含伴手礼） ----------
   function showNotInPoolBanner() {
     let el = document.getElementById('pool-tip');
     if (!el) {
       el = document.createElement('div');
       el.id = 'pool-tip';
-      el.className = 'stale-tip';
-      el.style.cssText = 'margin-top:12px;padding:14px 16px;border-radius:14px;font-size:14px;background:rgba(0,0,0,.25);border:1.5px dashed rgba(255,215,0,.5);color:var(--gold-1);line-height:1.7;text-align:center';
-      el.innerHTML = '⏳ <b style="font-size:16px">未参与抽奖</b><br>抽奖环节请扫描<b style="color:var(--gold-2)">大屏幕上的二维码</b>参与<br>已登记资料将自动带出，无需重复填写';
+      el.style.cssText = 'margin-top:12px;padding:16px;border-radius:16px;background:rgba(0,0,0,.22);border:1.5px dashed rgba(255,215,0,.5);line-height:1.8;text-align:center';
+      const gift = document.getElementById('gift-banner');
       const meCard = document.querySelector('.me-card');
+      // 插到"我的卡片"之后、伴手礼之前（伴手礼移进来）
       if (meCard && meCard.nextSibling) meCard.parentNode.insertBefore(el, meCard.nextSibling);
       else document.querySelector('.page').appendChild(el);
+      // 把伴手礼横幅搬进来（在未参与提示上方）
+      if (gift) el.appendChild(gift);
+    }
+    el.innerHTML = `
+      <div style="font-size:15px;font-weight:900;color:var(--gold-1)">⏳ 未参与抽奖</div>
+      <div style="font-size:13px;color:var(--ink-dim);margin-top:4px">
+        抽奖环节请扫描<b style="color:var(--gold-2)">大屏幕上的二维码</b>参与<br>
+        已登记资料将自动带出，无需重复填写
+      </div>`;
+    // 伴手礼嵌入（有配置时追加在提示下方）
+    const giftNote = window._lastGiftNote;
+    if (giftNote) {
+      el.innerHTML += `
+        <div style="margin-top:10px;padding:10px 14px;border-radius:12px;border:1px dashed rgba(255,215,0,.35);background:rgba(255,215,0,.08);font-size:12.5px;color:var(--gold-1)">
+          🎁 ${giftNote}
+        </div>`;
     }
     el.classList.remove('hidden');
     // 状态卡片文字也更新
@@ -136,9 +152,10 @@
 
     $('stale-tip').classList.toggle('hidden', !s.link || !s.link.stale);
 
-    // 伴手礼提示（配置为空则隐藏；领奖查询视图不显示）
+    // 伴手礼提示：配置为空隐藏；未入池时嵌入提示横幅内，已入池时独立显示
+    window._lastGiftNote = s.gift_note || '';
     const gb = $('gift-banner');
-    if (s.gift_note && !CLAIM) {
+    if (s.gift_note && !CLAIM && s.in_pool) {
       $('gift-note-text').textContent = s.gift_note;
       gb.classList.remove('hidden');
     } else gb.classList.add('hidden');
