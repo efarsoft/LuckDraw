@@ -293,7 +293,7 @@
     $(fileId).addEventListener('change', (e) => {
       const f = e.target.files && e.target.files[0];
       if (!f) return;
-      if (f.size > 1.5 * 1024 * 1024) { showToast('图片不能超过 1.5MB'); e.target.value = ''; return; }
+      if (f.size > 5 * 1024 * 1024) { showToast('图片不能超过 5MB'); e.target.value = ''; return; }
       const reader = new FileReader();
       reader.onload = async () => {
         try {

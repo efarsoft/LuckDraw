@@ -12,6 +12,8 @@ const { createRateLimiter } = require('./lib/ratelimit');
 
 const app = express();
 app.disable('x-powered-by');
+// 奖品图上传通道：独立大限额解析器（5MB 图片 base64 后约 6.7MB），须挂在全局小限额之前
+app.post('/api/admin/upload/prize', express.json({ limit: '10mb' }));
 app.use(express.json({ limit: '200kb' }));
 app.use(express.urlencoded({ extended: false, limit: '200kb' }));
 app.use(cookieAuth(db));

@@ -1,5 +1,6 @@
 'use strict';
 const express = require('express');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
@@ -120,13 +121,13 @@ router.post('/api/admin/rounds', requireAdmin, (req, res) => {
   res.json(draw.createRound(req.body || {}));
 });
 
-/** 奖品图片上传（base64 dataURL，落盘 data/uploads/prizes，返回 /uploads URL） */
+/** 奖品图片上传（base64 dataURL，落盘 data/uploads/prizes，返回 /uploads URL；上限 5MB） */
 router.post('/api/admin/upload/prize', requireAdmin, (req, res) => {
   const m = /^data:image\/(png|jpe?g|webp|gif);base64,(.+)$/.exec(String((req.body || {}).dataUrl || ''));
   if (!m) return res.status(400).json({ error: '仅支持 png/jpg/webp/gif 图片' });
   const buf = Buffer.from(m[2], 'base64');
   if (buf.length === 0) return res.status(400).json({ error: '图片内容为空' });
-  if (buf.length > 1.5 * 1024 * 1024) return res.status(400).json({ error: '图片不能超过 1.5MB' });
+  if (buf.length > 5 * 1024 * 1024) return res.status(400).json({ error: '图片不能超过 5MB' });
   const dir = path.join(config.DATA_DIR, 'uploads', 'prizes');
   fs.mkdirSync(dir, { recursive: true });
   const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
