@@ -20,7 +20,11 @@
   display: flex; align-items: center; gap: 16px; padding: 6px 2px 14px;
 }
 .brand { font-size: 20px; font-weight: 900; color: var(--gold-2); letter-spacing: 0.05em; display: flex; align-items: center; gap: 10px; }
-.top-actions { margin-left: auto; display: flex; gap: 10px; }
+.top-actions { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 1200px) {
+  .topbar { flex-wrap: wrap; gap: 8px; }
+  .top-actions { width: 100%; margin-left: 0; justify-content: flex-start; }
+}
 
 .sync-pill {
   display: flex; align-items: center; gap: 8px;
