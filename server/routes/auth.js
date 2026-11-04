@@ -19,7 +19,8 @@ function postLoginRedirect(res, user, mode) {
   if (mode === 'entry') return res.redirect('/entry');
   const required = state.getSetting('profile_form_enabled', '1') === '1';
   const need = required && !(user.real_name && user.phone);
-  res.redirect(need ? '/profile' : '/');
+  // v31：资料未完善统一走入场页（/entry），/profile 已退役
+  res.redirect(need ? '/entry' : '/');
 }
 
 /** 入场模式标记：签名 Cookie 传递过 OAuth 回调（10 分钟） */
