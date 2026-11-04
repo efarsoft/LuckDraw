@@ -11,6 +11,10 @@
   if (CLAIM) sessionStorage.setItem('ld_claim', '1');
   else if (sessionStorage.getItem('ld_claim') === '1') CLAIM = true;
 
+  // 入场跳转标记：入场页填完跳过来时暂不入池，等用户主动扫抽奖码
+  let FROM_ENTRY = new URLSearchParams(location.search).get('from') === 'entry';
+  if (FROM_ENTRY) sessionStorage.setItem('ld_from_entry', '1');
+
   function avatarOnerror(img) {
     img.onerror = null;
     img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Crect width='72' height='72' rx='14' fill='%23a31212'/%3E%3Ctext x='36' y='40' text-anchor='middle' font-size='34' fill='%23ffd700' font-family='sans-serif'%3E%E5%AE%A2%3C/text%3E%3C/svg%3E";
@@ -18,6 +22,31 @@
 
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // ---------- 未入池提示横幅 ----------
+  function showNotInPoolBanner() {
+    let el = document.getElementById('pool-tip');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'pool-tip';
+      el.className = 'stale-tip';
+      el.style.cssText = 'margin-top:12px;padding:14px 16px;border-radius:14px;font-size:14px;background:rgba(0,0,0,.25);border:1.5px dashed rgba(255,215,0,.5);color:var(--gold-1);line-height:1.7;text-align:center';
+      el.innerHTML = '⏳ <b style="font-size:16px">未参与抽奖</b><br>抽奖环节请扫描<b style="color:var(--gold-2)">大屏幕上的二维码</b>参与<br>已登记资料将自动带出，无需重复填写';
+      const meCard = document.querySelector('.me-card');
+      if (meCard && meCard.nextSibling) meCard.parentNode.insertBefore(el, meCard.nextSibling);
+      else document.querySelector('.page').appendChild(el);
+    }
+    el.classList.remove('hidden');
+    // 状态卡片文字也更新
+    const status = document.querySelector('.me-status');
+    if (status) status.innerHTML = '⏳ 已入场 · 未参与抽奖';
+  }
+  function hideNotInPoolBanner() {
+    const el = document.getElementById('pool-tip');
+    if (el) el.classList.add('hidden');
+    const status = document.querySelector('.me-status');
+    if (status) status.innerHTML = '<span class="dot"></span>已进入奖池 · 坐等好运';
   }
 
   // ---------- 领奖查询视图 ----------
@@ -57,7 +86,12 @@
       return;
     }
     // 抽奖入口：入场用户（未入池）打开即自动入池；领奖查询视图不触发
-    if (!s.in_pool && !CLAIM && !enteringPool) {
+    // 入场跳转过来的（from=entry）暂不入池，等扫抽奖码再触发
+    if (FROM_ENTRY && s.in_pool === false) {
+      sessionStorage.removeItem('ld_from_entry'); // 只跳转当次不池，后续正常访问即入池
+      FROM_ENTRY = false;
+      showNotInPoolBanner();
+    } else if (!s.in_pool && !CLAIM && !enteringPool) {
       enteringPool = true;
       http.post('/api/me/enter-pool', undefined, { retries: 2 }).catch(() => {}).finally(() => {
         enteringPool = false;
@@ -70,6 +104,13 @@
     if (CLAIM) {
       renderClaim(s);
       return;
+    }
+
+    // 入场用户（未入池）→ 显示"未参与"提示而非自动入池
+    if (!s.in_pool) {
+      showNotInPoolBanner();
+    } else {
+      hideNotInPoolBanner();
     }
 
     if (s.me) {

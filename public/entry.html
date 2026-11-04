@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#101b3d">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 rx=%2720%27 fill=%27%23101b3d%27/%3E%3Ctext x=%2750%27 y=%2768%27 text-anchor=%27middle%27 font-size=%2748%27 fill=%27%23ffd700%27 font-family=%27serif%27 font-weight=%27bold%27%3E%E5%85%A5%3C/text%3E%3C/svg%3E">
 <title>入场签到</title>
-<link rel="stylesheet" href="/css/base.css?v=28">
+<link rel="stylesheet" href="/css/base.css?v=29">
 <style>
 /* ===== 入场签到：藏蓝"入场券"风（与抽奖页明确区分） ===== */
 body {
@@ -194,8 +194,8 @@ header p { margin-top: 7px; color: rgba(238,242,255,.55); font-size: 12px; lette
   <footer class="foot">祝您参会愉快</footer>
 </div>
 
-<script src="/js/http.js?v=28"></script>
-<script src="/js/confetti.js?v=28"></script>
+<script src="/js/http.js?v=29"></script>
+<script src="/js/confetti.js?v=29"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -299,15 +299,17 @@ header p { margin-top: 7px; color: rgba(238,242,255,.55); font-size: 12px; lette
     if (!name) { err.textContent = '请填写姓名'; return; }
     if (!/^1[3-9]\d{9}$/.test(phone)) { err.textContent = '手机号格式不正确'; return; }
     $('pf-submit').disabled = true;
+    $('pf-submit').textContent = '入场成功，跳转中…';
     try {
       await http.post('/api/me/profile', { real_name: name, phone, dept });
-      const { data } = await http.get('/api/me/state?v=0&wait=1', { retries: 1 });
-      render(data);
       confetti.burst(innerWidth / 2, innerHeight / 2.6, { count: 50, speed: 8, lift: 6 });
       if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+      // 填完即跳参与页（?from=entry 标记 → 不自动入池，展示奖品清单+未参与提示）
+      setTimeout(() => location.replace('/?from=entry'), 1200);
     } catch (e) {
       err.textContent = (e && e.message) || '提交失败，请重试';
       $('pf-submit').disabled = false;
+      $('pf-submit').textContent = '完 成 入 场';
     }
   }
   $('pf-submit').onclick = submit;
