@@ -148,9 +148,9 @@
     },
     /** 中奖揭晓：赌场老虎机中奖 + 胜利钟声 + 欢呼 */
     ding(i) {
-      this.play('slot_win', { volume: 0.8 });
-      this.play('win_chime', { volume: 0.6 });
-      setTimeout(() => this.play('cheer', { volume: 0.4 }), 300);
+      this.play('win_reveal', { volume: 0.9 });
+      // win_chime 已合并进 win_reveal
+      // cheer 已内嵌 win_reveal 渐强
     },
     /** 寻人扫描：高频急促 */
     tick() {

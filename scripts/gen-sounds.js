@@ -131,22 +131,89 @@ function genDrumroll() {
   writeWav('drumroll.wav', lowpass(out, 6000));
 }
 
-/** 3. 老虎机中奖（Slot Win）：快速上升叮叮叮 */
-function genSlotWin() {
-  const dur = 2.5; const n = T(dur); const out = new Float64Array(n);
-  const notes = [523, 659, 784, 1047, 1319, 1568, 2093]; // 上行
-  notes.forEach((f, k) => {
-    const s = T(k * 0.18), e = T(k * 0.18 + 0.5);
+/** 3. 中奖爆发（Win Reveal）：鼓爆 + 铜管和弦 + 胜利旋律 + 欢呼 */
+function genWinReveal() {
+  const dur = 2.0; const n = T(dur); const out = new Float64Array(n);
+
+  // === Phase 1: 爆炸冲击（0-0.15s）===
+  for (let i = 0; i < T(0.15) && i < n; i++) {
+    const t = i / SR;
+    // Sub-bass drop
+    out[i] += sine(150 * Math.exp(-t * 25) + 30, i) * 0.6 * Math.exp(-t * 15);
+    // 噪声爆发（爆炸感）
+    out[i] += noise() * 0.3 * Math.exp(-t * 40);
+  }
+
+  // === Phase 2: 铜管和弦重击（0.08-0.6s）===
+  const stabFreqs = [262, 330, 392, 523]; // C 大和弦
+  for (let i = T(0.08); i < T(0.7) && i < n; i++) {
+    const t = (i - T(0.08)) / SR;
+    const e2 = Math.exp(-t * 4) * Math.min(1, t / 0.01);
+    for (const f of stabFreqs) {
+      out[i] += (saw(f, i) * 0.25 + saw(f * 2, i) * 0.12 + saw(f * 3, i) * 0.06) * e2 * 0.18;
+    }
+  }
+
+  // === Phase 3: 胜利旋律进行曲（0.4-1.4s）===
+  const melody = [
+    { f: 523,  t: 0.40, d: 0.15 },  // C5
+    { f: 523,  t: 0.55, d: 0.10 },  // C5
+    { f: 523,  t: 0.65, d: 0.10 },  // C5
+    { f: 659,  t: 0.75, d: 0.15 },  // E5
+    { f: 784,  t: 0.90, d: 0.25 },  // G5
+    { f: 1047, t: 1.15, d: 0.50 },  // C6 长音
+  ];
+  for (const m of melody) {
+    const s = T(m.t), e = T(m.t + m.d);
     for (let i = s; i < e && i < n; i++) {
-      out[i] += (sine(f, i) * 0.35 + sine(f * 2, i) * 0.2 + sine(f * 3, i) * 0.1) * env(i - s, e - s, 0.005, 4);
+      out[i] += (saw(m.f, i) * 0.3 + saw(m.f * 2, i) * 0.15 + sine(m.f * 3, i) * 0.08)
+        * env(i - s, e - s, 0.008, 3) * 0.22;
+    }
+  }
+
+  // === Phase 4: 鼓点驱动节奏（贯穿）===
+  const beats = [0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5];
+  for (const bt of beats) {
+    for (let j = 0; j < T(0.08) && T(bt) + j < n; j++) {
+      const idx = T(bt) + j;
+      out[idx] += sine(70, j) * Math.exp(-j / SR * 35) * 0.3;  // Kick
+    }
+    if (bt > 0) for (let j = 0; j < T(0.04) && T(bt + 0.125) + j < n; j++) {
+      const idx = T(bt + 0.125) + j;
+      out[idx] += noise() * Math.exp(-j / SR * 60) * 0.12;  // Snare
+    }
+  }
+
+  // === Phase 5: 镲片炸裂（0.08s + 1.15s）===
+  for (let i = T(0.08); i < T(0.8) && i < n; i++) {
+    out[i] += noise() * 0.15 * Math.exp(-(i - T(0.08)) / SR * 6);
+  }
+  for (let i = T(1.15); i < n; i++) {
+    out[i] += noise() * 0.1 * Math.exp(-(i - T(1.15)) / SR * 3);
+  }
+
+  // === Phase 6: 人群欢呼渐强 ===
+  for (let i = T(0.3); i < n; i++) {
+    const t = (i - T(0.3)) / SR;
+    const swell = Math.min(1, t / 0.3) * Math.min(1, (dur - 0.3 - t) / 0.5);
+    const lfo = 0.5 + 0.5 * Math.sin(2 * Math.PI * 4 * t);
+    out[i] += noise() * 0.06 * swell * lfo;
+  }
+
+  writeWav('win_reveal.wav', reverb(lowpass(out, 9000), 50, 0.3));
+}
+
+/** 4. 胜利钟声（Win Chime）：明亮钟琴 */
+function genWinChime() {
+  const dur = 1.5; const n = T(dur); const out = new Float64Array(n);
+  [1047, 1319, 1568].forEach((f, k) => {
+    const s = T(k * 0.06);
+    for (let i = s; i < n; i++) {
+      out[i] += sine(f, i) * 0.3 * Math.exp(-(i - s) / SR * 3);
+      out[i] += sine(f * 2.76, i) * 0.1 * Math.exp(-(i - s) / SR * 5);
     }
   });
-  // 尾声：胜利和弦长鸣
-  for (let i = T(1.4); i < n; i++) {
-    const t = (i - T(1.4)) / SR;
-    [523, 659, 784, 1047].forEach(f => out[i] += sine(f, i) * 0.15 * Math.exp(-t * 2));
-  }
-  writeWav('slot_win.wav', reverb(out, 50, 0.2));
+  writeWav('win_chime.wav', reverb(out, 80, 0.3));
 }
 
 /** 4. 胜利钟声（Win Chime）：明亮钟琴 */
@@ -243,7 +310,7 @@ function genJackpot() {
 console.log('生成音效文件...');
 genFanfare();
 genDrumroll();
-genSlotWin();
+genWinReveal();
 genWinChime();
 genCheer();
 genImpact();
@@ -251,4 +318,4 @@ genBell();
 genTrailerHit();
 genSuspense();
 genJackpot();
-console.log('完成！共 10 个 WAV 文件');
+console.log('完成！');
