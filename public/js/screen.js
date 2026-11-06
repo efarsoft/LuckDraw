@@ -88,101 +88,126 @@
       if (this.ctx.state === 'suspended') this.ctx.resume();
       return this.ctx;
     },
-    tone(freq, t0, dur, type = 'triangle', vol = 0.22) {
+    tone(freq, t0, dur, type = 'triangle', vol = 0.22, slideTo = null) {
       const ctx = this.ensure();
       if (!ctx) return;
       const o = ctx.createOscillator(), g = ctx.createGain();
-      o.type = type; o.frequency.value = freq;
+      o.type = type; o.frequency.setValueAtTime(freq, ctx.currentTime + t0);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, ctx.currentTime + t0 + dur * 0.8);
       g.gain.setValueAtTime(0, ctx.currentTime + t0);
-      g.gain.linearRampToValueAtTime(vol, ctx.currentTime + t0 + 0.02);
+      g.gain.linearRampToValueAtTime(vol, ctx.currentTime + t0 + 0.015);
       g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t0 + dur);
       o.connect(g).connect(ctx.destination);
       o.start(ctx.currentTime + t0);
       o.stop(ctx.currentTime + t0 + dur + 0.05);
     },
-    /** 噪声爆发（军鼓/镲片效果） */
-    noise(t0, dur, vol = 0.3, filterFreq = 6000) {
+    /** 噪声（军鼓/镲片/氛围） */
+    noise(t0, dur, vol = 0.3, filterFreq = 6000, type = 'highpass') {
       const ctx = this.ensure();
       if (!ctx) return;
-      const len = dur, buf = ctx.createBuffer(1, ctx.sampleRate * len, ctx.sampleRate);
+      const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
       const d = buf.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.5);
       const src = ctx.createBufferSource(); src.buffer = buf;
-      const filt = ctx.createBiquadFilter(); filt.type = 'highpass'; filt.frequency.value = filterFreq;
+      const filt = ctx.createBiquadFilter(); filt.type = type; filt.frequency.value = filterFreq;
       const g = ctx.createGain();
       g.gain.setValueAtTime(vol, ctx.currentTime + t0);
       g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t0 + dur);
       src.connect(filt).connect(g).connect(ctx.destination);
       src.start(ctx.currentTime + t0);
     },
-    /** 和弦（多频率叠加） */
-    chord(freqs, t0, dur, vol = 0.15, type = 'triangle') {
+    /** 铜管音色（锯齿+泛音叠加，模拟号角） */
+    brass(freq, t0, dur, vol = 0.15) {
+      this.tone(freq, t0, dur, 'sawtooth', vol);
+      this.tone(freq * 2, t0, dur, 'sawtooth', vol * 0.5);
+      this.tone(freq * 3, t0, dur * 0.6, 'sawtooth', vol * 0.25);
+    },
+    chord(freqs, t0, dur, vol = 0.12, type = 'triangle') {
       freqs.forEach(f => this.tone(f, t0, dur, type, vol));
     },
-    /** 中奖揭晓：上升双音 + 军鼓 + 低音冲击 */
+    /** 中奖：JACKPOT！上升琶音 + 镲片 + 电影级低频冲击 */
     ding(i) {
-      const base = 523 * Math.pow(1.06, i); // 每位中奖者音调微升，越抽越紧张
-      this.tone(base, 0, 0.15, 'sine', 0.32);
-      this.tone(base * 1.5, 0.08, 0.2, 'sine', 0.28);
-      this.tone(base * 2, 0.15, 0.35, 'sine', 0.22);
-      this.noise(0, 0.08, 0.2, 4000);  // 军鼓
-      this.thump();                      // 低音冲击
+      const base = 440 * Math.pow(1.059, i); // 每位递升半音，越抽越燃
+      // 快速上升琶音（大三和弦跨两个八度）
+      const arp = [base, base * 1.26, base * 1.5, base * 2, base * 2.52, base * 3];
+      arp.forEach((f, k) => this.brass(f, k * 0.035, 0.18, 0.16));
+      // 高音闪亮尾音
+      this.tone(base * 4, 0.22, 0.3, 'sine', 0.18);
+      // 镲片炸裂
+      this.noise(0, 0.15, 0.25, 8000);
+      this.noise(0, 0.4, 0.12, 12000);
+      // 电影级低频冲击
+      this.thump();
     },
-    /** 寻人扫描：急促双频交替 */
+    /** 寻人扫描：高频急促 */
     tick() {
       const ctx = this.ensure();
       if (!ctx) return;
       const o = ctx.createOscillator(), g = ctx.createGain();
       o.type = 'square';
-      o.frequency.setValueAtTime(2400, ctx.currentTime);
-      o.frequency.setValueAtTime(1800, ctx.currentTime + 0.02);
-      g.gain.setValueAtTime(0.09, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+      o.frequency.setValueAtTime(2800, ctx.currentTime);
+      o.frequency.exponentialRampToValueAtTime(2000, ctx.currentTime + 0.03);
+      g.gain.setValueAtTime(0.1, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.035);
       o.connect(g).connect(ctx.destination);
-      o.start(); o.stop(ctx.currentTime + 0.05);
+      o.start(); o.stop(ctx.currentTime + 0.04);
     },
-    /** 低音鼓：双层正弦 + 次低频 + 噪声冲击 */
+    /** 电影级低频冲击（预告片 Sub-Drop） */
     thump() {
       const ctx = this.ensure();
       if (!ctx) return;
+      // Layer 1: 超低频正弦（Sub Bass Drop 200→25Hz）
       const o1 = ctx.createOscillator(), g1 = ctx.createGain();
       o1.type = 'sine';
-      o1.frequency.setValueAtTime(160, ctx.currentTime);
-      o1.frequency.exponentialRampToValueAtTime(38, ctx.currentTime + 0.18);
-      g1.gain.setValueAtTime(0.55, ctx.currentTime);
-      g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+      o1.frequency.setValueAtTime(200, ctx.currentTime);
+      o1.frequency.exponentialRampToValueAtTime(25, ctx.currentTime + 0.25);
+      g1.gain.setValueAtTime(0.6, ctx.currentTime);
+      g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
       o1.connect(g1).connect(ctx.destination);
-      o1.start(); o1.stop(ctx.currentTime + 0.3);
+      o1.start(); o1.stop(ctx.currentTime + 0.38);
+      // Layer 2: 锯齿中频（Punch）
       const o2 = ctx.createOscillator(), g2 = ctx.createGain();
       o2.type = 'sawtooth';
-      o2.frequency.setValueAtTime(80, ctx.currentTime);
-      o2.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.15);
-      g2.gain.setValueAtTime(0.2, ctx.currentTime);
-      g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+      o2.frequency.setValueAtTime(120, ctx.currentTime);
+      o2.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.12);
+      g2.gain.setValueAtTime(0.25, ctx.currentTime);
+      g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
       o2.connect(g2).connect(ctx.destination);
-      o2.start(); o2.stop(ctx.currentTime + 0.22);
-      this.noise(0, 0.03, 0.12, 2000);
+      o2.start(); o2.stop(ctx.currentTime + 0.2);
+      // Layer 3: 噪声瞬态（Transient Snap）
+      this.noise(0, 0.04, 0.18, 1500, 'bandpass');
     },
-    /** 胜利号角：完整和弦进行 + 镲片 */
+    /** 胜利号角：史诗级铜管进行曲 + 定音鼓 + 镲片齐鸣 */
     fanfare() {
-      // I → IV → V → I 和弦进行（C大调）
+      // 小号呼叫（前三连音上行）
+      this.brass(523, 0, 0.15, 0.18);      // C4
+      this.brass(659, 0.15, 0.15, 0.18);   // E4
+      this.brass(784, 0.3, 0.2, 0.18);     // G4
+      // 和弦进行：C → F → G → C（属七和弦更有张力）
       const chords = [
-        { freqs: [523, 659, 784],    t: 0,    dur: 0.18 },  // C
-        { freqs: [698, 880, 1047],   t: 0.2,  dur: 0.18 },  // F
-        { freqs: [784, 988, 1175],   t: 0.4,  dur: 0.18 },  // G
-        { freqs: [523, 659, 784, 1047], t: 0.6, dur: 0.6 }, // C（终曲）
+        { freqs: [262, 330, 392, 523],  t: 0.55, dur: 0.22 },  // C
+        { freqs: [349, 440, 523, 698],  t: 0.82, dur: 0.22 },  // F
+        { freqs: [392, 494, 587, 784],  t: 1.09, dur: 0.22 },  // G7
+        { freqs: [262, 330, 392, 523, 659, 784, 1047], t: 1.36, dur: 1.0 }, // C 终曲大和弦
       ];
-      chords.forEach(c => this.chord(c.freqs, c.t, c.dur, 0.14));
-      // 附加旋律线
-      this.tone(1047, 0.6, 0.3, 'sine', 0.2);
-      this.tone(1319, 0.75, 0.45, 'sine', 0.18);
-      // 镲片 + 低音
-      this.noise(0.6, 0.5, 0.18, 8000);
+      chords.forEach(c => c.freqs.forEach(f => this.brass(f, c.t, c.dur, 0.09)));
+      // 高潮旋律线（胜利号角旋律）
+      this.brass(1047, 1.36, 0.35, 0.14);   // C6
+      this.brass(1319, 1.6, 0.5, 0.12);     // E6
+      this.brass(1568, 1.85, 0.6, 0.1);     // G6 长音
+      // 定音鼓滚奏
+      this.noise(0.5, 0.9, 0.08, 80, 'lowpass');
+      // 镲片三连击
+      this.noise(0.55, 0.8, 0.15, 10000);
+      this.noise(1.36, 1.2, 0.2, 8000);
+      this.noise(1.5, 0.6, 0.12, 12000);
+      // 双重低频冲击
       this.thump();
+      setTimeout(() => this.thump(), 300);
     },
     drumTimer: null,
     drumRollStep: 0,
-    /** 滚动鼓点：加速节奏，越来越紧张 */
+    /** 滚动鼓点：加速摇滚节奏 */
     drumrollStart() {
       if (this.drumTimer || this.muted) return;
       this.drumRollStep = 0;
@@ -190,30 +215,27 @@
         const ctx = this.ensure();
         if (!ctx) return;
         this.drumRollStep++;
-        // 交替低鼓+高镲，营造"动次打次"节奏
-        const isKick = this.drumRollStep % 2 === 0;
-        if (isKick) {
+        const step = this.drumRollStep % 4;
+        if (step === 0 || step === 2) {
+          // Kick（低鼓）
           const o = ctx.createOscillator(), g = ctx.createGain();
           o.type = 'sine';
-          o.frequency.setValueAtTime(100, ctx.currentTime);
-          o.frequency.exponentialRampToValueAtTime(40, ctx.currentTime + 0.08);
-          g.gain.setValueAtTime(0.2, ctx.currentTime);
-          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+          o.frequency.setValueAtTime(120, ctx.currentTime);
+          o.frequency.exponentialRampToValueAtTime(35, ctx.currentTime + 0.09);
+          g.gain.setValueAtTime(0.28, ctx.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
           o.connect(g).connect(ctx.destination);
-          o.start(); o.stop(ctx.currentTime + 0.12);
+          o.start(); o.stop(ctx.currentTime + 0.14);
+        } else if (step === 1) {
+          // Snare（军鼓）
+          this.noise(0, 0.06, 0.14, 3000, 'bandpass');
         } else {
-          const len = 0.03, buf = ctx.createBuffer(1, ctx.sampleRate * len, ctx.sampleRate);
-          const d = buf.getChannelData(0);
-          for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
-          const src = ctx.createBufferSource(); src.buffer = buf;
-          const filt = ctx.createBiquadFilter(); filt.type = 'highpass'; filt.frequency.value = 6000;
-          const g = ctx.createGain(); g.gain.value = 0.1;
-          src.connect(filt).connect(g).connect(ctx.destination);
-          src.start();
+          // Hi-hat（踩镲）
+          this.noise(0, 0.03, 0.08, 9000, 'highpass');
         }
       };
       beat();
-      this.drumTimer = setInterval(beat, 110);
+      this.drumTimer = setInterval(beat, 100);
     },
     drumrollStop() { clearInterval(this.drumTimer); this.drumTimer = null; this.drumRollStep = 0; },
   };
