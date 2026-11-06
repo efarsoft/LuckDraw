@@ -84,7 +84,7 @@
     files: {},
     load(name) {
       if (this.files[name]) return this.files[name];
-      const a = new Audio('/sounds/' + name + '.mp3');
+      const a = new Audio('/sounds/' + name + '.wav');
       a.preload = 'auto';
       this.files[name] = a;
       return a;
