@@ -80,6 +80,27 @@
   const AudioFX = {
     ctx: null,
     muted: localStorage.getItem('ld_muted') === '1',
+    /** 真实音频文件播放（Mixkit 免费商用素材） */
+    files: {},
+    load(name) {
+      if (this.files[name]) return this.files[name];
+      const a = new Audio('/sounds/' + name + '.mp3');
+      a.preload = 'auto';
+      this.files[name] = a;
+      return a;
+    },
+    play(name, { volume = 1, restart = true } = {}) {
+      if (this.muted) return;
+      const a = this.load(name);
+      if (restart) { a.currentTime = 0; }
+      a.volume = Math.min(1, volume);
+      a.play().catch(() => {});
+    },
+    /** 停止指定音效 */
+    stop(name) {
+      const a = this.files[name];
+      if (a) { a.pause(); a.currentTime = 0; }
+    },
     ensure() {
       if (this.muted) return null;
       if (!this.ctx) {
@@ -125,19 +146,11 @@
     chord(freqs, t0, dur, vol = 0.12, type = 'triangle') {
       freqs.forEach(f => this.tone(f, t0, dur, type, vol));
     },
-    /** 中奖：JACKPOT！上升琶音 + 镲片 + 电影级低频冲击 */
+    /** 中奖揭晓：赌场老虎机中奖 + 胜利钟声 + 欢呼 */
     ding(i) {
-      const base = 440 * Math.pow(1.059, i); // 每位递升半音，越抽越燃
-      // 快速上升琶音（大三和弦跨两个八度）
-      const arp = [base, base * 1.26, base * 1.5, base * 2, base * 2.52, base * 3];
-      arp.forEach((f, k) => this.brass(f, k * 0.035, 0.18, 0.16));
-      // 高音闪亮尾音
-      this.tone(base * 4, 0.22, 0.3, 'sine', 0.18);
-      // 镲片炸裂
-      this.noise(0, 0.15, 0.25, 8000);
-      this.noise(0, 0.4, 0.12, 12000);
-      // 电影级低频冲击
-      this.thump();
+      this.play('slot_win', { volume: 0.8 });
+      this.play('win_chime', { volume: 0.6 });
+      setTimeout(() => this.play('cheer', { volume: 0.4 }), 300);
     },
     /** 寻人扫描：高频急促 */
     tick() {
@@ -177,67 +190,27 @@
       // Layer 3: 噪声瞬态（Transient Snap）
       this.noise(0, 0.04, 0.18, 1500, 'bandpass');
     },
-    /** 胜利号角：史诗级铜管进行曲 + 定音鼓 + 镲片齐鸣 */
+    /** 胜利号角：中世纪管弦乐号角 + 电影级低频冲击 + 欢呼 */
     fanfare() {
-      // 小号呼叫（前三连音上行）
-      this.brass(523, 0, 0.15, 0.18);      // C4
-      this.brass(659, 0.15, 0.15, 0.18);   // E4
-      this.brass(784, 0.3, 0.2, 0.18);     // G4
-      // 和弦进行：C → F → G → C（属七和弦更有张力）
-      const chords = [
-        { freqs: [262, 330, 392, 523],  t: 0.55, dur: 0.22 },  // C
-        { freqs: [349, 440, 523, 698],  t: 0.82, dur: 0.22 },  // F
-        { freqs: [392, 494, 587, 784],  t: 1.09, dur: 0.22 },  // G7
-        { freqs: [262, 330, 392, 523, 659, 784, 1047], t: 1.36, dur: 1.0 }, // C 终曲大和弦
-      ];
-      chords.forEach(c => c.freqs.forEach(f => this.brass(f, c.t, c.dur, 0.09)));
-      // 高潮旋律线（胜利号角旋律）
-      this.brass(1047, 1.36, 0.35, 0.14);   // C6
-      this.brass(1319, 1.6, 0.5, 0.12);     // E6
-      this.brass(1568, 1.85, 0.6, 0.1);     // G6 长音
-      // 定音鼓滚奏
-      this.noise(0.5, 0.9, 0.08, 80, 'lowpass');
-      // 镲片三连击
-      this.noise(0.55, 0.8, 0.15, 10000);
-      this.noise(1.36, 1.2, 0.2, 8000);
-      this.noise(1.5, 0.6, 0.12, 12000);
-      // 双重低频冲击
-      this.thump();
-      setTimeout(() => this.thump(), 300);
+      this.play('fanfare', { volume: 0.9 });        // 号角进行曲
+      this.play('trailer_hit', { volume: 0.7 });   // 电影级冲击
+      setTimeout(() => this.play('cheer', { volume: 0.6 }), 800);  // 欢呼声
     },
     drumTimer: null,
     drumRollStep: 0,
-    /** 滚动鼓点：加速摇滚节奏 */
+    /** 滚动：真实鼓声滚奏（循环播放） */
     drumrollStart() {
       if (this.drumTimer || this.muted) return;
-      this.drumRollStep = 0;
-      const beat = () => {
-        const ctx = this.ensure();
-        if (!ctx) return;
-        this.drumRollStep++;
-        const step = this.drumRollStep % 4;
-        if (step === 0 || step === 2) {
-          // Kick（低鼓）
-          const o = ctx.createOscillator(), g = ctx.createGain();
-          o.type = 'sine';
-          o.frequency.setValueAtTime(120, ctx.currentTime);
-          o.frequency.exponentialRampToValueAtTime(35, ctx.currentTime + 0.09);
-          g.gain.setValueAtTime(0.28, ctx.currentTime);
-          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-          o.connect(g).connect(ctx.destination);
-          o.start(); o.stop(ctx.currentTime + 0.14);
-        } else if (step === 1) {
-          // Snare（军鼓）
-          this.noise(0, 0.06, 0.14, 3000, 'bandpass');
-        } else {
-          // Hi-hat（踩镲）
-          this.noise(0, 0.03, 0.08, 9000, 'highpass');
-        }
-      };
-      beat();
-      this.drumTimer = setInterval(beat, 100);
+      const a = this.load('drumroll');
+      a.loop = true;
+      a.volume = 0.6;
+      a.play().catch(() => {});
     },
-    drumrollStop() { clearInterval(this.drumTimer); this.drumTimer = null; this.drumRollStep = 0; },
+    drumrollStop() {
+      this.stop('drumroll');
+      this.drumTimer = null;
+      this.drumRollStep = 0;
+    },
   };
   $('btn-sound').textContent = AudioFX.muted ? '🔇' : '🔊';
   function toggleMute() {
@@ -572,23 +545,20 @@
   let phaseToken = 0;
   function playCountdown(done) {
     const box = $('countdown');
-    const seq = [
-      { n: '3', f: 659 },
-      { n: '2', f: 784 },
-      { n: '1', f: 988 },
-    ];
+    const seq = ['3', '2', '1'];
     box.classList.remove('hidden');
-    seq.forEach((it, i) => {
+    seq.forEach((n, i) => {
       setTimeout(() => {
         if (!box.classList.contains('hidden')) {
-          box.innerHTML = `<span>${it.n}</span>`;
-          AudioFX.tone(it.f, 0, 0.42, 'sine', 0.3);
+          box.innerHTML = `<span>${n}</span>`;
+          AudioFX.play('bell', { volume: 0.7 });
         }
       }, i * 700);
     });
     setTimeout(() => {
       box.classList.add('hidden');
       box.innerHTML = '';
+      AudioFX.play('impact', { volume: 0.8 }); // 倒数完毕冲击
       done();
     }, seq.length * 700 + 120);
   }
@@ -675,7 +645,7 @@
       clearInterval(tickTimer);
       if (!sphere.hunt) return done(); // 阶段被切走
       sphere.hunt = { mode: 'lock', spotAngle: 0, spotSpeed: 0, lockedId: w.user_id };
-      AudioFX.tone(1046, 0, 0.35, 'sine', 0.24);
+      AudioFX.play('win_chime', { volume: 0.5 }); // 锁定中奖者时的胜利钟声
       setTimeout(() => {
         sphere.hunt = null;
         sphere.pts.forEach((p) => p.el.classList.remove('lit'));
